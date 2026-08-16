@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LegalServe Pro</title>
+  <script src="https://cdn.tailwindcss.com">
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js">
+  </script>
+  <style>
+    * { transition: background-color 0.3s, color 0.2s, border-color 0.2s, box-shadow 0.2s; }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    .glass { backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+    .glass-card { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); background: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.3); }
+    .dark .glass-card { background: rgba(15,23,42,0.7); border-color: rgba(148,163,184,0.15); }
+    .shadow-soft { box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04); }
+    .dark .shadow-soft { box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.3); }
+    .sidebar-item { cursor: pointer; border-radius: 0.5rem; padding: 0.625rem 0.75rem; display: flex; align-items: center; gap: 0.75rem; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; }
+    .sidebar-item:hover { background: rgba(99,102,241,0.08); }
+    .sidebar-item.active { background: rgba(99,102,241,0.12); color: #6366f1; }
+    .dark .sidebar-item:hover { background: rgba(99,102,241,0.12); }
+    .dark .sidebar-item.active { background: rgba(99,102,241,0.18); color: #818cf8; }
+    .badge { display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+    .skeleton { background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 0.375rem; }
+    .dark .skeleton { background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%); background-size: 200% 100%; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .slide-in { animation: slideIn 0.25s ease-out; }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+    .scale-in { animation: scaleIn 0.2s ease-out; }
+    @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s ease-out; }
+    .kanban-col { min-height: 12rem; }
+    .timeline-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid; flex-shrink: 0; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .dark ::-webkit-scrollbar-thumb { background: #475569; }
+    .tab-btn { padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 500; border-radius: 0.5rem; cursor: pointer; transition: all 0.15s; }
+    .tab-btn.active { background: #6366f1; color: white; }
+    .dark .tab-btn.active { background: #4f46e5; color: white; }
+    .tab-btn:not(.active):hover { background: rgba(99,102,241,0.08); }
+    .dark .tab-btn:not(.active):hover { background: rgba(99,102,241,0.12); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 200; animation: slideIn 0.3s ease-out, fadeIn 0.3s ease-out; }
+    @media (max-width: 768px) { .sidebar-open { transform: translateX(0) !important; } .sidebar-closed { transform: translateX(-100%); } }
+  </style>
+</head>
+<body>
+
+  <!-- ===== TOAST CONTAINER ===== -->
+  <div id="toastContainer" class="toast hidden"></div>
+  <!-- ===== MODAL CONTAINER ===== -->
+  <div id="modalContainer" class="hidden"></div>
+  <!-- ===== LOADING OVERLAY ===== -->
+  <div id="loadingOverlay" class="fixed inset-0 z-[300] flex items-center justify-center bg-white/80 dark:bg-slate-900/80 hidden">
+    <div class="flex flex-col items-center gap-3">
+      <div class="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+      <span class="text-sm text-slate-500 dark:text-slate-400">Loading…</span>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- ====================== APP ROOT ============================ -->
+  <!-- ============================================================ -->
+  <div id="appRoot" class="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+
+    <!-- SCREEN: LOGIN -->
+    <div id="screenLogin" class="min-h-screen flex items-center justify-center p-4" style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);">
+      <div class="glass-card rounded-3xl p-8 md:p-12 w-full max-w-md shadow-2xl">
+        <div class="text-center mb-8">
+          <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500/20 mb-4">
+            <i class="fas fa-balance-scale text-3xl text-indigo-400"></i>
+          </div>
+          <h1 class="text-3xl font-bold text-white">LegalServe Pro</h1>
+          <p class="text-slate-400 mt-1 text-sm">Enterprise Legal Service Platform</p>
+        </div>
+        <form id="loginForm" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-300 mb-1">Email</label>
+            <input type="email" value="admin@legalservepro.com" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-slate-700/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-300 mb-1">Password</label>
+            <input type="password" value="password" class="w-full px-4 py-3 rounded-xl bg-white/5 border border-slate-700/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50">
+          </div>
+          <div class="flex items-center justify-between">
+            <label class="flex items-center gap-2 text-sm text-slate-400"><input type="checkbox" checked class="rounded bg-white/5 border-slate-700"> Remember me</label>
+            <a href="#" class="text-sm text-indigo-400 hover:text-indigo-300">Forgot password?</a>
+          </div>
+          <button type="submit" class="w-full py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-semibold transition shadow-lg shadow-indigo-500/25">Sign In</button>
+        </form>
+        <p class="text-center text-xs text-slate-500 mt-6">&copy; 2026 LegalServe Pro. All rights reserved.</p>
+      </div>
+    </div>
+
+    <!-- SCREEN: ROLE SELECTION -->
+    <div id="screenRoleSelect" class="min-h-screen hidden" style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);">
+      <div class="max-w-4xl mx-auto px-4 py-16">
+        <div class="text-center mb-12">
+          <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500/20 mb-3"><i class="fas fa-balance-scale text-2xl text-indigo-400"></i></div>
+          <h1 class="text-3xl font-bold text-white">Welcome to LegalServe Pro</h1>
+          <p class="text-slate-400 mt-2">Select your role to continue</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="role-card glass-card rounded-2xl p-6 cursor-pointer hover:scale-[1.02] transition text-center" data-role="lawfirm">
+            <div class="w-14 h-14 rounded-xl bg-indigo-500/15 flex items-center justify-center mx-auto mb-4"><i class="fas fa-gavel text-2xl text-indigo-400"></i></div>
+            <h3 class="font-semibold text-white text-lg">Law Firm</h3>
+            <p class="text-slate-400 text-sm mt-1">Case & matter management</p>
+          </div>
+          <div class="role-card glass-card rounded-2xl p-6 cursor-pointer hover:scale-[1.02] transition text-center" data-role="agency">
+            <div class="w-14 h-14 rounded-xl bg-emerald-500/15 flex items-center justify-center mx-auto mb-4"><i class="fas fa-truck text-2xl text-emerald-400"></i></div>
+            <h3 class="font-semibold text-white text-lg">Process Serving Agency</h3>
+            <p class="text-slate-400 text-sm mt-1">Dispatch & job management</p>
+          </div>
+          <div class="role-card glass-card rounded-2xl p-6 cursor-pointer hover:scale-[1.02] transition text-center" data-role="server">
+            <div class="w-14 h-14 rounded-xl bg-amber-500/15 flex items-center justify-center mx-auto mb-4"><i class="fas fa-person-walking text-2xl text-amber-400"></i></div>
+            <h3 class="font-semibold text-white text-lg">Process Server</h3>
+            <p class="text-slate-400 text-sm mt-1">Jobs & GPS tracking</p>
+          </div>
+          <div class="role-card glass-card rounded-2xl p-6 cursor-pointer hover:scale-[1.02] transition text-center" data-role="admin">
+            <div class="w-14 h-14 rounded-xl bg-rose-500/15 flex items-center justify-center mx-auto mb-4"><i class="fas fa-shield-halved text-2xl text-rose-400"></i></div>
+            <h3 class="font-semibold text-white text-lg">Platform Admin</h3>
+            <p class="text-slate-400 text-sm mt-1">System & compliance oversight</p>
+          </div>
+        </div>
+        <p class="text-center text-xs text-slate-500 mt-12">&copy; 2026 LegalServe Pro. All rights reserved.</p>
+      </div>
+    </div>
+
+    <!-- SCREEN: MAIN APP -->
+    <div id="screenMain" class="hidden min-h-screen flex">
+      <!-- SIDEBAR -->
+      <aside id="sidebar" class="w-64 flex-shrink-0 border-r border-slate-200 dark:border-slate-700/50 bg-white/80 dark:bg-slate-800/80 glass flex flex-col h-screen sticky top-0 overflow-y-auto z-30">
+        <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-200 dark:border-slate-700/50">
+          <div class="w-9 h-9 rounded-xl bg-indigo-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-balance-scale text-white text-sm"></i></div>
+          <div><span class="font-bold text-base">LegalServe</span><span class="text-indigo-500 font-bold">Pro</span></div>
+        </div>
+        <div id="sidebarUser" class="px-4 py-3 border-b border-slate-200 dark:border-slate-700/50 flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold" id="sidebarAvatar">JD</div>
+          <div class="text-xs"><div class="font-medium" id="sidebarName">John Doe</div><div class="text-slate-400 dark:text-slate-500" id="sidebarRole">Law Firm</div></div>
+        </div>
+        <nav id="sidebarNav" class="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto text-sm"></nav>
+        <div class="px-3 py-3 border-t border-slate-200 dark:border-slate-700/50">
+          <div class="sidebar-item" onclick="toggleDarkMode()"><i class="fas fa-moon w-5 text-center"></i><span>Dark Mode</span></div>
+          <div class="sidebar-item" onclick="logout()"><i class="fas fa-right-from-bracket w-5 text-center"></i><span>Logout</span></div>
+        </div>
+      </aside>
+      <!-- MAIN CONTENT -->
+      <div class="flex-1 flex flex-col min-w-0">
+        <header class="h-16 flex-shrink-0 border-b border-slate-200 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/60 glass flex items-center justify-between px-4 md:px-6 sticky top-0 z-20">
+          <div class="flex items-center gap-4">
+            <button class="md:hidden text-lg" onclick="document.getElementById('sidebar').classList.toggle('-translate-x-full')"><i class="fas fa-bars"></i></button>
+            <div class="relative w-64 max-w-full">
+              <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+              <input type="text" placeholder="Search cases, jobs, clients..." class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-sm">
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <button class="relative p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50" onclick="showToast('No new notifications')">
+              <i class="fas fa-bell text-slate-500 dark:text-slate-400"></i>
+              <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500"></span>
+            </button>
+            <button class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50"><i class="fas fa-cog text-slate-500 dark:text-slate-400"></i></button>
+            <div class="flex items-center gap-2 cursor-pointer" onclick="showToast('Profile menu')">
+              <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold" id="topbarAvatar">JD</div>
+            </div>
+          </div>
+        </header>
+        <main id="pageContent" class="flex-1 p-4 md:p-6 overflow-y-auto">
+          <div class="flex items-center justify-center h-64 text-slate-400"><i class="fas fa-spinner fa-spin text-2xl mr-2"></i> Loading...</div>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentRole = null;
+    let currentPage = 'dashboard';
+    let darkMode = false;
+    let charts = {};
+
+    const roleNames = { lawfirm: 'Law Firm', agency: 'Process Serving Agency', server: 'Process Server', admin: 'Platform Administrator' };
+
+    const sidebarItems = {
+      lawfirm: [
+        { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
+        { id: 'cases', label: 'Cases', icon: 'fa-folder-open' },
+        { id: 'matters', label: 'Matter Management', icon: 'fa-briefcase' },
+        { id: 'clients', label: 'Clients', icon: 'fa-users' },
+        { id: 'attorneys', label: 'Attorneys', icon: 'fa-user-tie' },
+        { id: 'documents', label: 'Documents', icon: 'fa-file-lines' },
+        { id: 'templates', label: 'Templates', icon: 'fa-copy' },
+        { id: 'calendar', label: 'Calendar', icon: 'fa-calendar' },
+        { id: 'billing', label: 'Billing', icon: 'fa-receipt' },
+        { id: 'trust', label: 'Trust Accounting', icon: 'fa-piggy-bank' },
+        { id: 'portal', label: 'Client Portal', icon: 'fa-user-lock' },
+        { id: 'reports', label: 'Reports', icon: 'fa-chart-bar' },
+        { id: 'analytics', label: 'Analytics', icon: 'fa-chart-line' },
+        { id: 'messaging', label: 'Messaging', icon: 'fa-comments' },
+        { id: 'audit', label: 'Audit Logs', icon: 'fa-clipboard-list' },
+        { id: 'settings', label: 'Settings', icon: 'fa-gear' }
+      ],
+      agency: [
+        { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
+        { id: 'jobs', label: 'Incoming Jobs', icon: 'fa-inbox' },
+        { id: 'assignments', label: 'Assignments', icon: 'fa-people-arrows' },
+        { id: 'dispatch', label: 'Dispatch Center', icon: 'fa-tower-cell' },
+        { id: 'scheduling', label: 'Scheduling', icon: 'fa-calendar-check' },
+        { id: 'territories', label: 'Territories', icon: 'fa-map' },
+        { id: 'marketplace', label: 'Marketplace', icon: 'fa-store' },
+        { id: 'servers', label: 'Process Servers', icon: 'fa-person-walking' },
+        { id: 'evidence', label: 'Evidence', icon: 'fa-camera' },
+        { id: 'affidavits', label: 'Affidavits', icon: 'fa-file-pen' },
+        { id: 'invoices', label: 'Invoices', icon: 'fa-receipt' },
+        { id: 'revenue', label: 'Revenue', icon: 'fa-dollar-sign' },
+        { id: 'analytics', label: 'Analytics', icon: 'fa-chart-line' },
+        { id: 'messaging', label: 'Messaging', icon: 'fa-comments' },
+        { id: 'reports', label: 'Reports', icon: 'fa-chart-bar' },
+        { id: 'settings', label: 'Settings', icon: 'fa-gear' }
+      ],
+      server: [
+        { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
+        { id: 'todayjobs', label: "Today's Jobs", icon: 'fa-list-check' },
+        { id: 'upcoming', label: 'Upcoming Jobs', icon: 'fa-calendar-day' },
+        { id: 'mapnav', label: 'Map & Navigation', icon: 'fa-map-location-dot' },
+        { id: 'jobdetails', label: 'Job Details', icon: 'fa-circle-info' },
+        { id: 'attempts', label: 'Attempt Recording', icon: 'fa-pen' },
+        { id: 'evidence', label: 'Evidence Upload', icon: 'fa-upload' },
+        { id: 'affidavits', label: 'Affidavit Submission', icon: 'fa-file-signature' },
+        { id: 'payments', label: 'Payments', icon: 'fa-money-bill' },
+        { id: 'history', label: 'History', icon: 'fa-clock-rotate' },
+        { id: 'messages', label: 'Messages', icon: 'fa-comment' },
+        { id: 'profile', label: 'Profile', icon: 'fa-user' },
+        { id: 'settings', label: 'Settings', icon: 'fa-gear' }
+      ],
+      admin: [
+        { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
+        { id: 'organizations', label: 'Organizations', icon: 'fa-building' },
+        { id: 'lawfirms', label: 'Law Firms', icon: 'fa-gavel' },
+        { id: 'agencies', label: 'Serving Agencies', icon: 'fa-truck' },
+        { id: 'servers', label: 'Process Servers', icon: 'fa-person-walking' },
+        { id: 'marketplace', label: 'Marketplace', icon: 'fa-store' },
+        { id: 'subscriptions', label: 'Subscriptions', icon: 'fa-credit-card' },
+        { id: 'revenue', label: 'Revenue', icon: 'fa-dollar-sign' },
+        { id: 'support', label: 'Support Tickets', icon: 'fa-ticket' },
+        { id: 'compliance', label: 'Compliance Engine', icon: 'fa-scale-balanced' },
+        { id: 'automation', label: 'Automation', icon: 'fa-robot' },
+        { id: 'ai', label: 'AI Module', icon: 'fa-brain' },
+        { id: 'security', label: 'Security', icon: 'fa-shield' },
+        { id: 'audit', label: 'Audit Logs', icon: 'fa-clipboard-list' },
+        { id: 'settings', label: 'System Settings', icon: 'fa-gear' }
+      ]
+    };
+
+    function $(id) { return document.getElementById(id); }
+
+    function showToast(msg, type) {
+      type = type || 'info';
+      const c = $('toastContainer');
+      const colors = { info: 'bg-slate-800 dark:bg-slate-700', success: 'bg-emerald-600', error: 'bg-rose-600', warning: 'bg-amber-500' };
+      c.className = 'toast ' + (colors[type] || colors.info) + ' text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 text-sm';
+      const icons = { info: 'fa-info-circle', success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-triangle-exclamation' };
+      c.innerHTML = '<i class="fas ' + (icons[type] || icons.info) + '"></i> ' + msg;
+      c.classList.remove('hidden');
+      clearTimeout(c._t);
+      c._t = setTimeout(() => c.classList.add('hidden'), 3000);
+    }
+
+    function showModal(html) {
+      const c = $('modalContainer');
+      c.innerHTML = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto scale-in">' + html + '</div></div>';
+      c.classList.remove('hidden');
+    }
+
+    function closeModal() { $('modalContainer').classList.add('hidden'); }
+
+    function showLoading(show) { $('loadingOverlay').classList.toggle('hidden', !show); }
+
+    function toggleDarkMode() {
+      darkMode = !darkMode;
+      document.documentElement.classList.toggle('dark', darkMode);
+      localStorage.setItem('lsp-dark', darkMode);
+      showToast(darkMode ? 'Dark mode enabled' : 'Light mode enabled');
+    }
+    if (localStorage.getItem('lsp-dark') === 'true') { darkMode = true;
+      document.documentElement.classList.add('dark'); }
+
+    function logout() { showScreen('screenLogin');
+      showToast('Logged out'); }
+
+    function showScreen(id) {
+      ['screenLogin', 'screenRoleSelect', 'screenMain'].forEach(s => $(s).classList.toggle('hidden', s !== id));
+      if (id === 'screenMain' && currentRole) renderPage(currentPage);
+    }
+
+    document.querySelectorAll('.role-card').forEach(el => {
+      el.addEventListener('click', function() {
+        const role = this.dataset.role;
+        currentRole = role;
+        const nameMap = { lawfirm: 'John Doe', agency: 'Sarah Miles', server: 'Mike Torres', admin: 'Admin User' };
+        const initMap = { lawfirm: 'JD', agency: 'SM', server: 'MT', admin: 'AU' };
+        $('sidebarName').textContent = nameMap[role];
+        $('sidebarRole').textContent = roleNames[role];
+        $('sidebarAvatar').textContent = initMap[role];
+        $('topbarAvatar').textContent = initMap[role];
+        buildSidebar();
+        showScreen('screenMain');
+        showToast('Welcome, ' + nameMap[role], 'success');
+      });
+    });
+
+    $('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      showLoading(true);
+      setTimeout(() => { showLoading(false);
+        showScreen('screenRoleSelect');
+        showToast('Signed in successfully', 'success'); }, 800);
+    });
+
+    function buildSidebar() {
+      const nav = $('sidebarNav');
+      const items = sidebarItems[currentRole] || [];
+      nav.innerHTML = items.map(i =>
+        '<div class="sidebar-item ' + (i.id === currentPage ? 'active' : '') + '" onclick="navigate(\'' + i.id + '\')"><i class="fas ' + i.icon + ' w-5 text-center"></i><span>' + i.label + '</span></div>'
+      ).join('');
+    }
+
+    function navigate(page) {
+      currentPage = page;
+      buildSidebar();
+      renderPage(page);
+      document.getElementById('sidebar').classList.add('-translate-x-full');
+    }
+
+    function renderPage(page) {
+      const content = $('pageContent');
+      showLoading(true);
+      setTimeout(() => {
+        const fn = pageRenderers[page] || pageRenderers['dashboard'];
+        content.innerHTML = fn ? fn() : '<div class="flex items-center justify-center h-64 text-slate-400"><i class="fas fa-file-circle-exclamation text-3xl mr-3"></i> Page not found</div>';
+        initPageCharts(page);
+        showLoading(false);
+      }, 150);
+    }
+
+    function destroyChart(id) {
+      if (charts[id]) { charts[id].destroy();
+        delete charts[id]; }
+    }
+
+    function initPageCharts(page) {
+      document.querySelectorAll('canvas[data-chart]').forEach(canvas => {
+        const id = canvas.id;
+        if (!id) return;
+        destroyChart(id);
+        const type = canvas.dataset.chart || 'line';
+        const labels = JSON.parse(canvas.dataset.labels || '["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]');
+        const values = JSON.parse(canvas.dataset.values || '[30,45,28,60,55,40,70]');
+        const color = canvas.dataset.color || '#6366f1';
+        try {
+          const ctx = canvas.getContext('2d');
+          charts[id] = new Chart(ctx, {
+            type: type,
+            data: {
+              labels: labels,
+              datasets: [{
+                label: canvas.dataset.label || 'Data',
+                data: values,
+                backgroundColor: type === 'pie' ? ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'] : color + '20',
+                borderColor: color,
+                borderWidth: 2,
+                tension: 0.4,
+                fill: type === 'line' || type === 'radar'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: type === 'pie', position: 'bottom' } },
+              scales: (type === 'line' || type === 'bar') ? { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } }, x: { grid: { display: false } } } : undefined
+            }
+          });
+        } catch (e) { console.warn('Chart error', id); }
+      });
+    }
+
+    // ===================== PAGE RENDERERS =====================
+    const pageRenderers = {};
+
+    function lawfirmDashboard() {
+      return `
+        <div class="fade-in space-y-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-2">
+            <div><h1 class="text-2xl font-bold">Law Firm Dashboard</h1><p class="text-sm text-slate-400">Welcome back, John. You have 3 upcoming deadlines.</p></div>
+            <div class="flex gap-2"><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 transition shadow" onclick="showToast('New case created','success')"><i class="fas fa-plus mr-1"></i> New Case</button><button class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition" onclick="showToast('Generating report...')"><i class="fas fa-download mr-1"></i> Export</button></div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center"><i class="fas fa-folder-open text-indigo-500"></i></div><div><div class="text-2xl font-bold">147</div><div class="text-xs text-slate-400">Active Cases</div></div></div><div class="mt-2 text-xs text-emerald-500"><i class="fas fa-arrow-up mr-1"></i>12% vs last month</div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center"><i class="fas fa-users text-emerald-500"></i></div><div><div class="text-2xl font-bold">89</div><div class="text-xs text-slate-400">Clients</div></div></div><div class="mt-2 text-xs text-emerald-500"><i class="fas fa-arrow-up mr-1"></i>5% growth</div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center"><i class="fas fa-clock text-amber-500"></i></div><div><div class="text-2xl font-bold">12</div><div class="text-xs text-slate-400">Pending Deadlines</div></div></div><div class="mt-2 text-xs text-rose-500"><i class="fas fa-arrow-down mr-1"></i>3 overdue</div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center"><i class="fas fa-dollar-sign text-rose-500"></i></div><div><div class="text-2xl font-bold">$284K</div><div class="text-xs text-slate-400">Revenue YTD</div></div></div><div class="mt-2 text-xs text-emerald-500"><i class="fas fa-arrow-up mr-1"></i>18% increase</div></div>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Weekly Case Activity</h3><div class="h-56"><canvas id="chart_lf_weekly" data-chart="line" data-labels='["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]' data-values='[12,19,8,15,22,6,14]' data-color="#6366f1"></canvas></div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Case Types</h3><div class="h-56"><canvas id="chart_lf_types" data-chart="pie" data-labels='["Civil","Family","Criminal","Corporate","Real Estate"]' data-values='[45,25,15,10,5]' data-color="#6366f1"></canvas></div></div>
+          </div>
+          <div class="glass-card rounded-2xl p-5 shadow-soft">
+            <div class="flex items-center justify-between mb-4"><h3 class="font-semibold">Recent Cases</h3><button class="text-sm text-indigo-500 hover:underline" onclick="navigate('cases')">View All</button></div>
+            <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Case #</th><th class="pb-3 font-medium">Title</th><th class="pb-3 font-medium">Client</th><th class="pb-3 font-medium">Status</th><th class="pb-3 font-medium">Deadline</th></tr></thead><tbody>
+              <tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast('Opening case details...')"><td class="py-3 font-medium">C-2026-0421</td><td>Smith vs. Corporation</td><td>Alice Smith</td><td><span class="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Active</span></td><td>Sep 12, 2026</td></tr>
+              <tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast('Opening case details...')"><td class="py-3 font-medium">C-2026-0419</td><td>Estate of Johnson</td><td>Robert Johnson</td><td><span class="badge bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Pending</span></td><td>Aug 28, 2026</td></tr>
+              <tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast('Opening case details...')"><td class="py-3 font-medium">C-2026-0415</td><td>Davis Divorce Proceedings</td><td>Sarah Davis</td><td><span class="badge bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">Discovery</span></td><td>Oct 5, 2026</td></tr>
+              <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast('Opening case details...')"><td class="py-3 font-medium">C-2026-0410</td><td>Martinez vs. City</td><td>Carlos Martinez</td><td><span class="badge bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">Urgent</span></td><td>Aug 20, 2026</td></tr>
+            </tbody></table></div>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-4">Upcoming Deadlines</h3><div class="space-y-3">
+              <div class="flex items-center gap-3 p-3 rounded-xl bg-rose-50 dark:bg-rose-900/10"><div class="timeline-dot border-rose-500 bg-rose-500"></div><div class="flex-1"><div class="font-medium text-sm">Martinez Response Due</div><div class="text-xs text-slate-400">Aug 20 &middot; 4 days left</div></div><span class="badge bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">Urgent</span></div>
+              <div class="flex items-center gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10"><div class="timeline-dot border-amber-500 bg-amber-500"></div><div class="flex-1"><div class="font-medium text-sm">Johnson Estate Filing</div><div class="text-xs text-slate-400">Aug 28 &middot; 12 days left</div></div><span class="badge bg-amber-100 text-amber-700">Pending</span></div>
+              <div class="flex items-center gap-3 p-3 rounded-xl bg-sky-50 dark:bg-sky-900/10"><div class="timeline-dot border-sky-500 bg-sky-500"></div><div class="flex-1"><div class="font-medium text-sm">Discovery Deadline - Davis</div><div class="text-xs text-slate-400">Sep 5 &middot; 20 days left</div></div><span class="badge bg-sky-100 text-sky-700">Discovery</span></div>
+              <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800"><div class="timeline-dot border-slate-400 bg-slate-400"></div><div class="flex-1"><div class="font-medium text-sm">Smith Deposition</div><div class="text-xs text-slate-400">Sep 18 &middot; 33 days left</div></div><span class="badge bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">Upcoming</span></div>
+            </div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-4">Calendar Preview</h3>
+              <div class="grid grid-cols-7 gap-1 text-center text-xs mb-2">Sun Mon Tue Wed Thu Fri Sat.split(' ').map(d=>'<div class="font-medium text-slate-400">'+d+'</div>').join('')</div>
+              <div class="grid grid-cols-7 gap-1 text-center text-sm">${Array.from({length:31},(_,i)=>{const d=i+1;const ev=[5,12,18,25];return '<div class="p-1.5 rounded-lg '+(d===16?'bg-indigo-500 text-white font-bold':ev.includes(d)?'bg-indigo-100 dark:bg-indigo-900/30 font-medium':'')+' cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700" onclick="showToast(\'Viewing Aug '+d+'\')">'+d+'</div>';}).join('')}</div>
+              <div class="mt-3 space-y-1 text-xs text-slate-400"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-indigo-500"></span> Aug 18 - Smith Deposition Prep</div><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Aug 20 - Martinez Deadline</div></div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function agencyDashboard() {
+      return `
+        <div class="fade-in space-y-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-2"><div><h1 class="text-2xl font-bold">Agency Dashboard</h1><p class="text-sm text-slate-400">12 jobs pending dispatch today.</p></div><div class="flex gap-2"><button class="px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-medium hover:bg-emerald-600 transition shadow" onclick="showToast('New job created','success')"><i class="fas fa-plus mr-1"></i> New Job</button><button class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm" onclick="navigate('dispatch')"><i class="fas fa-tower-cell mr-1"></i> Dispatch Center</button></div></div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center"><i class="fas fa-inbox text-emerald-500"></i></div><div><div class="text-2xl font-bold">47</div><div class="text-xs text-slate-400">Active Jobs</div></div></div><div class="mt-2 text-xs text-emerald-500"><i class="fas fa-arrow-up mr-1"></i> 8 new today</div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center"><i class="fas fa-user-clock text-amber-500"></i></div><div><div class="text-2xl font-bold">23</div><div class="text-xs text-slate-400">Unassigned</div></div></div><div class="mt-2 text-xs text-rose-500"><i class="fas fa-exclamation-triangle mr-1"></i> Needs attention</div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center"><i class="fas fa-road text-blue-500"></i></div><div><div class="text-2xl font-bold">12</div><div class="text-xs text-slate-400">In Transit</div></div></div><div class="mt-2 text-xs text-blue-500"><i class="fas fa-location-dot mr-1"></i> 5 near delivery</div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center"><i class="fas fa-dollar-sign text-rose-500"></i></div><div><div class="text-2xl font-bold">$52K</div><div class="text-xs text-slate-400">Revenue This Month</div></div></div><div class="mt-2 text-xs text-emerald-500"><i class="fas fa-arrow-up mr-1"></i> 22% growth</div></div>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Jobs This Week</h3><div class="h-56"><canvas id="chart_ag_weekly" data-chart="bar" data-labels='["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]' data-values='[18,24,15,30,22,10,8]' data-color="#10b981"></canvas></div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Dispatch Status</h3><div class="h-56"><canvas id="chart_ag_status" data-chart="pie" data-labels='["Assigned","In Transit","Completed","Failed"]' data-values='[35,25,30,10]' data-color="#10b981"></canvas></div></div>
+          </div>
+          <div class="glass-card rounded-2xl p-5 shadow-soft">
+            <div class="flex items-center justify-between mb-4"><h3 class="font-semibold">Pending Assignments</h3><button class="text-sm text-emerald-500 hover:underline" onclick="navigate('assignments')">View All</button></div>
+            <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Job ID</th><th class="pb-3 font-medium">Address</th><th class="pb-3 font-medium">Client</th><th class="pb-3 font-medium">Priority</th><th class="pb-3 font-medium">Server</th><th class="pb-3 font-medium">Status</th></tr></thead><tbody>
+              <tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"><td class="py-3 font-medium">SJ-0082</td><td>123 Main St, Austin TX</td><td>Smith Law</td><td><span class="badge bg-rose-100 text-rose-700">High</span></td><td class="text-slate-400">&mdash;</td><td><span class="badge bg-amber-100 text-amber-700">Pending</span></td></tr>
+              <tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"><td class="py-3 font-medium">SJ-0081</td><td>456 Oak Ave, Dallas TX</td><td>Davis Legal</td><td><span class="badge bg-amber-100 text-amber-700">Medium</span></td><td>Mike Torres</td><td><span class="badge bg-sky-100 text-sky-700">Assigned</span></td></tr>
+              <tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"><td class="py-3 font-medium">SJ-0080</td><td>789 Pine Rd, Houston TX</td><td>Johnson &amp; Co</td><td><span class="badge bg-slate-100 text-slate-600">Low</span></td><td>Sarah Miles</td><td><span class="badge bg-emerald-100 text-emerald-700">In Transit</span></td></tr>
+              <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"><td class="py-3 font-medium">SJ-0079</td><td>321 Elm St, San Antonio TX</td><td>Martinez Law</td><td><span class="badge bg-rose-100 text-rose-700">High</span></td><td class="text-slate-400">&mdash;</td><td><span class="badge bg-amber-100 text-amber-700">Pending</span></td></tr>
+            </tbody></table></div>
+          </div>
+        </div>`;
+    }
+
+    function serverDashboard() {
+      return `
+        <div class="fade-in space-y-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-2"><div><h1 class="text-2xl font-bold">Good morning, Mike!</h1><p class="text-sm text-slate-400">You have 5 jobs scheduled today.</p></div><div class="flex gap-2"><button class="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition shadow" onclick="showToast('Marked available','success')"><i class="fas fa-toggle-on mr-1"></i> Available</button><button class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm" onclick="navigate('mapnav')"><i class="fas fa-map mr-1"></i> View Map</button></div></div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center"><i class="fas fa-list-check text-amber-500"></i></div><div><div class="text-2xl font-bold">5</div><div class="text-xs text-slate-400">Today's Jobs</div></div></div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center"><i class="fas fa-check-circle text-emerald-500"></i></div><div><div class="text-2xl font-bold">3</div><div class="text-xs text-slate-400">Completed</div></div></div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center"><i class="fas fa-location-dot text-blue-500"></i></div><div><div class="text-2xl font-bold">2</div><div class="text-xs text-slate-400">In Progress</div></div></div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center"><i class="fas fa-star text-rose-500"></i></div><div><div class="text-2xl font-bold">4.8</div><div class="text-xs text-slate-400">Rating</div></div></div></div>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Today's Route Efficiency</h3><div class="h-56"><canvas id="chart_sv_route" data-chart="line" data-labels='["8AM","10AM","12PM","2PM","4PM","6PM"]' data-values='[2,4,3,5,4,2]' data-color="#f59e0b"></canvas></div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Job Status Distribution</h3><div class="h-56"><canvas id="chart_sv_status" data-chart="pie" data-labels='["Completed","In Progress","Pending","Failed"]' data-values='[45,30,18,7]' data-color="#f59e0b"></canvas></div></div>
+          </div>
+          <div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-4">Today's Jobs</h3>
+            <div class="space-y-3">
+              <div class="flex items-center gap-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer" onclick="showToast('Navigating to 123 Main St')"><div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center"><i class="fas fa-check text-emerald-500"></i></div><div class="flex-1"><div class="font-medium text-sm">123 Main St, Austin TX</div><div class="text-xs text-slate-400">Completed &middot; Evidence uploaded</div></div><span class="text-xs text-slate-400">8:30 AM</span></div>
+              <div class="flex items-center gap-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20 cursor-pointer" onclick="showToast('Navigating to 456 Oak Ave')"><div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center"><i class="fas fa-spinner text-amber-500"></i></div><div class="flex-1"><div class="font-medium text-sm">456 Oak Ave, Dallas TX</div><div class="text-xs text-slate-400">In progress &middot; 2nd attempt</div></div><span class="text-xs text-slate-400">10:15 AM</span></div>
+              <div class="flex items-center gap-4 p-3 rounded-xl bg-sky-50 dark:bg-sky-900/10 hover:bg-sky-100 dark:hover:bg-sky-900/20 cursor-pointer" onclick="showToast('Next job: 789 Pine Rd')"><div class="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center"><i class="fas fa-clock text-sky-500"></i></div><div class="flex-1"><div class="font-medium text-sm">789 Pine Rd, Houston TX</div><div class="text-xs text-slate-400">Upcoming &middot; ETA 25 min</div></div><span class="text-xs text-slate-400">1:00 PM</span></div>
+              <div class="flex items-center gap-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer" onclick="showToast('Next job: 321 Elm St')"><div class="w-10 h-10 rounded-xl bg-slate-300 dark:bg-slate-600 flex items-center justify-center"><i class="fas fa-clock text-white"></i></div><div class="flex-1"><div class="font-medium text-sm">321 Elm St, San Antonio TX</div><div class="text-xs text-slate-400">Upcoming &middot; ETA 1.5 hrs</div></div><span class="text-xs text-slate-400">3:00 PM</span></div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function adminDashboard() {
+      return `
+        <div class="fade-in space-y-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-2"><div><h1 class="text-2xl font-bold">Admin Dashboard</h1><p class="text-sm text-slate-400">Platform overview across all organizations.</p></div><div class="flex gap-2"><button class="px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-medium hover:bg-rose-600 transition shadow" onclick="showToast('System health check passed','success')"><i class="fas fa-heart-pulse mr-1"></i> Health Check</button><button class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm" onclick="navigate('compliance')"><i class="fas fa-scale-balanced mr-1"></i> Compliance</button></div></div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="text-2xl font-bold">24</div><div class="text-xs text-slate-400">Law Firms</div><div class="mt-1 text-xs text-emerald-500">+2 this month</div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="text-2xl font-bold">18</div><div class="text-xs text-slate-400">Agencies</div><div class="mt-1 text-xs text-emerald-500">+1 this month</div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="text-2xl font-bold">156</div><div class="text-xs text-slate-400">Process Servers</div><div class="mt-1 text-xs text-emerald-500">+12 this month</div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="text-2xl font-bold">2.4K</div><div class="text-xs text-slate-400">Jobs This Month</div><div class="mt-1 text-xs text-emerald-500">+18%</div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><div class="text-2xl font-bold">$1.2M</div><div class="text-xs text-slate-400">Platform Revenue</div><div class="mt-1 text-xs text-emerald-500">+24%</div></div>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Platform Activity</h3><div class="h-56"><canvas id="chart_ad_activity" data-chart="line" data-labels='["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug"]' data-values='[800,950,1100,1300,1500,1700,2100,2400]' data-color="#ef4444"></canvas></div></div>
+            <div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Revenue Breakdown</h3><div class="h-56"><canvas id="chart_ad_revenue" data-chart="pie" data-labels='["Subscriptions","Per-Job Fees","Marketplace","Add-ons"]' data-values='[45,30,15,10]' data-color="#ef4444"></canvas></div></div>
+          </div>
+          <div class="glass-card rounded-2xl p-5 shadow-soft">
+            <div class="flex items-center justify-between mb-4"><h3 class="font-semibold">Recent Organizations</h3><button class="text-sm text-rose-500 hover:underline" onclick="navigate('organizations')">View All</button></div>
+            <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Organization</th><th class="pb-3 font-medium">Type</th><th class="pb-3 font-medium">Plan</th><th class="pb-3 font-medium">Users</th><th class="pb-3 font-medium">Status</th></tr></thead><tbody>
+              <tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"><td class="py-3 font-medium">Smith &amp; Associates</td><td>Law Firm</td><td>Enterprise</td><td>12</td><td><span class="badge bg-emerald-100 text-emerald-700">Active</span></td></tr>
+              <tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"><td class="py-3 font-medium">Texas Process Servers</td><td>Agency</td><td>Professional</td><td>8</td><td><span class="badge bg-emerald-100 text-emerald-700">Active</span></td></tr>
+              <tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"><td class="py-3 font-medium">Davis Legal Services</td><td>Law Firm</td><td>Starter</td><td>4</td><td><span class="badge bg-amber-100 text-amber-700">Trial</span></td></tr>
+              <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50"><td class="py-3 font-medium">QuickServe Nationwide</td><td>Agency</td><td>Enterprise</td><td>25</td><td><span class="badge bg-emerald-100 text-emerald-700">Active</span></td></tr>
+            </tbody></table></div>
+          </div>
+        </div>`;
+    }
+
+    pageRenderers['dashboard'] = function() {
+      if (currentRole === 'lawfirm') return lawfirmDashboard();
+      if (currentRole === 'agency') return agencyDashboard();
+      if (currentRole === 'server') return serverDashboard();
+      if (currentRole === 'admin') return adminDashboard();
+      return '<div class="flex items-center justify-center h-64 text-slate-400"><i class="fas fa-dashboard text-3xl mr-3"></i> Dashboard</div>';
+    };
+
+    // ===================== INDIVIDUAL PAGE RENDERERS =====================
+
+    function caseDetailModal(id, title) {
+      return '<div class="p-6"><div class="flex items-center justify-between mb-4"><h2 class="text-lg font-bold">' + id + ': ' + title + '</h2><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-xl"><i class="fas fa-xmark"></i></button></div><div class="grid grid-cols-2 gap-4 text-sm mb-4"><div><span class="text-slate-400">Client:</span><span class="ml-2 font-medium">Alice Smith</span></div><div><span class="text-slate-400">Attorney:</span><span class="ml-2 font-medium">Sarah Johnson</span></div><div><span class="text-slate-400">Status:</span><span class="ml-2 badge bg-emerald-100 text-emerald-700">Active</span></div><div><span class="text-slate-400">Filed:</span><span class="ml-2">Mar 12, 2026</span></div></div><div class="border-t dark:border-slate-700 pt-4"><h4 class="font-semibold text-sm mb-2">Case Timeline</h4><div class="space-y-2 text-xs"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Filed complaint - Mar 12</div><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Service of process - Mar 18</div><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Answer due - Apr 2</div><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-sky-500"></span> Discovery - In progress</div></div></div><div class="mt-5 flex gap-3"><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium" onclick="closeModal();showToast(\'Opening case...\')">Open Full Case</button><button class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm" onclick="closeModal()">Close</button></div></div>';
+    }
+
+    pageRenderers['cases'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex flex-col md:flex-row md:items-center justify-between gap-2"><div><h1 class="text-2xl font-bold">Cases</h1><p class="text-sm text-slate-400">Manage all your active and archived cases.</p></div><div class="flex gap-2"><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 transition shadow" onclick="showToast(\'New case created\',\'success\')"><i class="fas fa-plus mr-1"></i> New Case</button><button class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm"><i class="fas fa-filter mr-1"></i> Filter</button></div></div><div class="flex gap-2 flex-wrap"><span class="tab-btn active" onclick="showToast(\'Active cases\')">Active (42)</span><span class="tab-btn" onclick="showToast(\'Pending cases\')">Pending (18)</span><span class="tab-btn" onclick="showToast(\'Closed cases\')">Closed (87)</span><span class="tab-btn" onclick="showToast(\'Archived\')">Archived (34)</span></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-3"><div class="glass-card rounded-xl p-4 text-center"><div class="text-xl font-bold text-indigo-500">42</div><div class="text-xs text-slate-400">Active</div></div><div class="glass-card rounded-xl p-4 text-center"><div class="text-xl font-bold text-emerald-500">18</div><div class="text-xs text-slate-400">Discovery</div></div><div class="glass-card rounded-xl p-4 text-center"><div class="text-xl font-bold text-amber-500">12</div><div class="text-xs text-slate-400">Trial Prep</div></div><div class="glass-card rounded-xl p-4 text-center"><div class="text-xl font-bold text-rose-500">7</div><div class="text-xs text-slate-400">Urgent</div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Case #</th><th class="pb-3 font-medium">Title</th><th class="pb-3 font-medium">Client</th><th class="pb-3 font-medium">Attorney</th><th class="pb-3 font-medium">Status</th><th class="pb-3 font-medium">Filing Date</th><th class="pb-3 font-medium">Actions</th></tr></thead><tbody>'
+        + '<tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"><td class="py-3 font-medium">C-2026-0421</td><td>Smith vs. Corporation</td><td>Alice Smith</td><td>Sarah Johnson</td><td><span class="badge bg-emerald-100 text-emerald-700"><span class="status-dot bg-emerald-500"></span>Active</span></td><td>Mar 12, 2026</td><td><button class="text-indigo-500 text-xs hover:underline" onclick="showModal(caseDetailModal(\'C-2026-0421\',\'Smith vs. Corporation\'))">View</button></td></tr>'
+        + '<tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"><td class="py-3 font-medium">C-2026-0419</td><td>Estate of Johnson</td><td>Robert Johnson</td><td>Michael Chen</td><td><span class="badge bg-amber-100 text-amber-700"><span class="status-dot bg-amber-500"></span>Pending</span></td><td>Jan 28, 2026</td><td><button class="text-indigo-500 text-xs hover:underline" onclick="showModal(caseDetailModal(\'C-2026-0419\',\'Estate of Johnson\'))">View</button></td></tr>'
+        + '<tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"><td class="py-3 font-medium">C-2026-0415</td><td>Davis Divorce</td><td>Sarah Davis</td><td>Emily Park</td><td><span class="badge bg-sky-100 text-sky-700"><span class="status-dot bg-sky-500"></span>Discovery</span></td><td>Feb 14, 2026</td><td><button class="text-indigo-500 text-xs hover:underline" onclick="showModal(caseDetailModal(\'C-2026-0415\',\'Davis Divorce\'))">View</button></td></tr>'
+        + '<tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"><td class="py-3 font-medium">C-2026-0410</td><td>Martinez vs. City</td><td>Carlos Martinez</td><td>Sarah Johnson</td><td><span class="badge bg-rose-100 text-rose-700"><span class="status-dot bg-rose-500"></span>Urgent</span></td><td>Apr 2, 2026</td><td><button class="text-indigo-500 text-xs hover:underline" onclick="showModal(caseDetailModal(\'C-2026-0410\',\'Martinez vs. City\'))">View</button></td></tr>'
+        + '<tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"><td class="py-3 font-medium">C-2026-0408</td><td>Thompson Property</td><td>James Thompson</td><td>Michael Chen</td><td><span class="badge bg-purple-100 text-purple-700"><span class="status-dot bg-purple-500"></span>Mediation</span></td><td>May 18, 2026</td><td><button class="text-indigo-500 text-xs hover:underline" onclick="showModal(caseDetailModal(\'C-2026-0408\',\'Thompson Property\'))">View</button></td></tr>'
+        + '<tr><td class="py-3 font-medium">C-2026-0405</td><td>Rodriguez Custody</td><td>Maria Rodriguez</td><td>Emily Park</td><td><span class="badge bg-emerald-100 text-emerald-700"><span class="status-dot bg-emerald-500"></span>Active</span></td><td>Jun 22, 2026</td><td><button class="text-indigo-500 text-xs hover:underline" onclick="showModal(caseDetailModal(\'C-2026-0405\',\'Rodriguez Custody\'))">View</button></td></tr>'
+        + '</tbody></table><div class="flex items-center justify-between mt-4 pt-3 border-t dark:border-slate-700"><span class="text-xs text-slate-400">Showing 1-6 of 147</span><div class="flex gap-1 text-xs"><button class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200">1</button><button class="px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">2</button><button class="px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">3</button><button class="px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">...</button><button class="px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">25</button></div></div></div></div>';
+    };
+
+    pageRenderers['matters'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Matter Management</h1><p class="text-sm text-slate-400">Organize and manage legal matters.</p></div><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium" onclick="showToast(\'New matter created\',\'success\')"><i class="fas fa-plus mr-1"></i> New Matter</button></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">'
+        + ['Smith vs. Corp|C-2026-0421|Corporate Litigation|Sarah Johnson|Aug 20', 'Estate Johnson|C-2026-0419|Estate Planning|Michael Chen|Sep 5', 'Davis Divorce|C-2026-0415|Family Law|Emily Park|Oct 12', 'Martinez vs. City|C-2026-0410|Civil Rights|Sarah Johnson|Aug 28', 'Thompson Property|C-2026-0408|Real Estate|Michael Chen|Nov 2', 'Rodriguez Custody|C-2026-0405|Family Law|Emily Park|Sep 18'].map(function(m) {
+          var parts = m.split('|');
+          return '<div class="glass-card rounded-2xl p-5 shadow-soft cursor-pointer hover:scale-[1.01] transition" onclick="showToast(\'Opening matter: ' + parts[0] + '\')"><div class="flex items-center justify-between mb-2"><span class="font-semibold">' + parts[0] + '</span><span class="text-xs text-slate-400">' + parts[1] + '</span></div><div class="text-xs text-slate-400 space-y-1"><div>' + parts[2] + ' &middot; ' + parts[3] + '</div><div>Next deadline: ' + parts[4] + '</div></div><div class="mt-3 flex items-center gap-2"><span class="badge bg-emerald-100 text-emerald-700">Active</span><span class="text-xs text-slate-400 ml-auto"><i class="far fa-clock mr-1"></i>' + parts[4] + '</span></div></div>';
+        }).join('') + '</div></div>';
+    };
+
+    pageRenderers['clients'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Clients</h1><p class="text-sm text-slate-400">Manage your client relationships.</p></div><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium" onclick="showToast(\'New client added\',\'success\')"><i class="fas fa-user-plus mr-1"></i> Add Client</button></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">'
+        + ['Alice Smith|alice@email.com|(512) 555-0101|3 cases|Active', 'Robert Johnson|robert@email.com|(512) 555-0102|1 case|Active', 'Sarah Davis|sarah@email.com|(512) 555-0103|2 cases|Active', 'Carlos Martinez|carlos@email.com|(512) 555-0104|1 case|Active', 'James Thompson|james@email.com|(512) 555-0105|2 cases|Active', 'Maria Rodriguez|maria@email.com|(512) 555-0106|1 case|Active'].map(function(c) {
+          var p = c.split('|');
+          var initials = p[0].split(' ').map(function(s) { return s[0]; }).join('');
+          return '<div class="glass-card rounded-2xl p-5 shadow-soft cursor-pointer hover:scale-[1.01] transition" onclick="showToast(\'Viewing client: ' + p[0] + '\')"><div class="flex items-center gap-3 mb-2"><div class="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center font-bold text-indigo-500">' + initials + '</div><div><div class="font-semibold">' + p[0] + '</div><div class="text-xs text-slate-400">' + p[1] + '</div></div></div><div class="text-xs text-slate-400 space-y-0.5"><div><i class="fas fa-phone mr-1 w-3"></i>' + p[2] + '</div><div><i class="fas fa-briefcase mr-1 w-3"></i>' + p[3] + '</div></div><div class="mt-2"><span class="badge bg-emerald-100 text-emerald-700">' + p[4] + '</span></div></div>';
+        }).join('') + '</div></div>';
+    };
+
+    pageRenderers['documents'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Documents</h1><p class="text-sm text-slate-400">Upload, manage, and search documents.</p></div><div class="flex gap-2"><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium" onclick="showToast(\'Upload dialog opened\')"><i class="fas fa-upload mr-1"></i> Upload</button><button class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm"><i class="fas fa-folder-plus mr-1"></i> New Folder</button></div></div><div class="flex items-center gap-2 flex-wrap"><span class="tab-btn active">All Documents</span><span class="tab-btn" onclick="showToast(\'Filtering affidavits\')">Affidavits</span><span class="tab-btn" onclick="showToast(\'Filtering summons\')">Summons</span><span class="tab-btn" onclick="showToast(\'Filtering templates\')">Templates</span><span class="tab-btn" onclick="showToast(\'Filtering OCR\')">OCR Ready</span></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">'
+        + ['Affidavit_Smith.pdf|PDF|2.4 MB|Today|indigo', 'Summons_Johnson.docx|DOCX|1.1 MB|Yesterday|emerald', 'Complaint_Davis.pdf|PDF|3.7 MB|Aug 12|rose', 'Motion_Thompson.pdf|PDF|1.8 MB|Aug 10|amber', 'Evidence_Photos.zip|ZIP|15.2 MB|Aug 8|sky', 'Contract_Rodriguez.pdf|PDF|892 KB|Aug 5|purple'].map(function(d) {
+          var p = d.split('|');
+          var icon = p[1] === 'PDF' ? 'fa-file-pdf' : p[1] === 'DOCX' ? 'fa-file-word' : 'fa-file-archive';
+          return '<div class="glass-card rounded-xl p-4 shadow-soft cursor-pointer hover:scale-[1.01] transition" onclick="showToast(\'Previewing ' + p[0] + '\')"><div class="flex items-center gap-3 mb-2"><div class="w-10 h-10 rounded-xl bg-' + p[4] + '-500/10 flex items-center justify-center"><i class="fas ' + icon + ' text-' + p[4] + '-500"></i></div><div class="flex-1 min-w-0"><div class="font-medium text-sm truncate">' + p[0] + '</div><div class="text-xs text-slate-400">' + p[1] + ' &middot; ' + p[2] + '</div></div></div><div class="text-xs text-slate-400 flex items-center justify-between"><span>' + p[3] + '</span><span class="hover:text-indigo-500" onclick="event.stopPropagation();showToast(\'Downloading ' + p[0] + '\')"><i class="fas fa-download"></i></span></div></div>';
+        }).join('') + '</div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Recent Versions</h3><div class="space-y-2 text-sm"><div class="flex items-center justify-between py-2 border-b dark:border-slate-700/50"><div><span class="font-medium">Affidavit_Smith.pdf</span><span class="text-slate-400 ml-2">v3</span></div><div class="text-slate-400 text-xs">Today 2:15 PM</div><button class="text-indigo-500 text-xs hover:underline" onclick="showToast(\'Restored v3\')">Restore</button></div><div class="flex items-center justify-between py-2 border-b dark:border-slate-700/50"><div><span class="font-medium">Affidavit_Smith.pdf</span><span class="text-slate-400 ml-2">v2</span></div><div class="text-slate-400 text-xs">Yesterday 4:30 PM</div><button class="text-indigo-500 text-xs hover:underline" onclick="showToast(\'Restored v2\')">Restore</button></div><div class="flex items-center justify-between py-2"><div><span class="font-medium">Affidavit_Smith.pdf</span><span class="text-slate-400 ml-2">v1</span></div><div class="text-slate-400 text-xs">Aug 14, 2026</div><button class="text-indigo-500 text-xs hover:underline" onclick="showToast(\'Restored v1\')">Restore</button></div></div></div></div>';
+    };
+
+    pageRenderers['templates'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Templates</h1><p class="text-sm text-slate-400">Pre-built document templates for your firm.</p></div><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium" onclick="showToast(\'New template created\',\'success\')"><i class="fas fa-plus mr-1"></i> New Template</button></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">'
+        + ['Affidavit of Service|Standard affidavit for process servers|fa-file-signature|indigo', 'Summons Template|Court summons document|fa-gavel|emerald', 'Complaint Form|Civil complaint template|fa-file-lines|rose', 'Motion Template|Standard legal motion|fa-file-pen|amber', 'Subpoena Form|Witness subpoena|fa-people-arrows|sky', 'Notice of Hearing|Court hearing notification|fa-bullhorn|purple'].map(function(t) {
+          var p = t.split('|');
+          return '<div class="glass-card rounded-2xl p-5 shadow-soft cursor-pointer hover:scale-[1.01] transition" onclick="showToast(\'Opening template: ' + p[0] + '\')"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-xl bg-' + p[3] + '-500/10 flex items-center justify-center"><i class="fas ' + p[2] + ' text-' + p[3] + '-500"></i></div><div><div class="font-semibold">' + p[0] + '</div><div class="text-xs text-slate-400">' + p[1] + '</div></div></div><div class="flex gap-2"><button class="text-xs text-indigo-500 hover:underline" onclick="event.stopPropagation();showToast(\'Using ' + p[0] + '\')"><i class="fas fa-use mr-1"></i> Use</button><button class="text-xs text-slate-400 hover:underline" onclick="event.stopPropagation();showToast(\'Previewing ' + p[0] + '\')"><i class="fas fa-eye mr-1"></i> Preview</button></div></div>';
+        }).join('') + '</div></div>';
+    };
+
+    pageRenderers['calendar'] = function() {
+      var daysHtml = Array.from({ length: 31 }, function(_, i) {
+        var d = i + 1;
+        var events = [5, 12, 16, 18, 25, 28];
+        var isEvent = events.includes(d);
+        var isToday = d === 16;
+        return '<div class="p-2 rounded-lg ' + (isToday ? 'bg-indigo-500 text-white font-bold ring-2 ring-indigo-300' : isEvent ? 'bg-indigo-100 dark:bg-indigo-900/30 font-medium' : '') + ' cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700" onclick="showToast(\'' + (isEvent ? 'Viewing event on Aug ' + d : 'No events on Aug ' + d) + '\')">' + d + '</div>';
+      }).join('');
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Calendar</h1><p class="text-sm text-slate-400">Court dates, deadlines, and events.</p></div><div class="flex gap-2"><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium" onclick="showToast(\'Event created\',\'success\')"><i class="fas fa-plus mr-1"></i> Add Event</button><button class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm" onclick="showToast(\'Calendar synced\',\'success\')"><i class="fas fa-sync mr-1"></i> Sync</button></div></div><div class="grid grid-cols-1 lg:grid-cols-3 gap-4"><div class="lg:col-span-2 glass-card rounded-2xl p-5 shadow-soft"><div class="flex items-center justify-between mb-4"><button class="text-sm hover:text-indigo-500" onclick="showToast(\'Previous month\')"><i class="fas fa-chevron-left"></i></button><h3 class="font-semibold">August 2026</h3><button class="text-sm hover:text-indigo-500" onclick="showToast(\'Next month\')"><i class="fas fa-chevron-right"></i></button></div><div class="grid grid-cols-7 gap-1 text-center text-xs mb-2">Sun Mon Tue Wed Thu Fri Sat.split(\' \').map(function(d){return \'<div class="font-medium text-slate-400">\'+d+\'</div>\';}).join(\'\')</div><div class="grid grid-cols-7 gap-1 text-center text-sm">' + daysHtml + '</div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Upcoming Events</h3><div class="space-y-3"><div class="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/10 cursor-pointer" onclick="showToast(\'Viewing event\')"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-indigo-500"></span><span class="font-medium text-sm">Smith Deposition</span></div><div class="text-xs text-slate-400 ml-4">Aug 18 &middot; 2:00 PM &middot; Courtroom 3B</div></div><div class="p-3 rounded-xl bg-rose-50 dark:bg-rose-900/10 cursor-pointer" onclick="showToast(\'Viewing event\')"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-rose-500"></span><span class="font-medium text-sm">Martinez Deadline</span></div><div class="text-xs text-slate-400 ml-4">Aug 20 &middot; 5:00 PM &middot; Filing due</div></div><div class="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 cursor-pointer" onclick="showToast(\'Viewing event\')"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="font-medium text-sm">Johnson Estate Filing</span></div><div class="text-xs text-slate-400 ml-4">Aug 28 &middot; 12:00 PM &middot; County Court</div></div><div class="p-3 rounded-xl bg-sky-50 dark:bg-sky-900/10 cursor-pointer" onclick="showToast(\'Viewing event\')"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-sky-500"></span><span class="font-medium text-sm">Davis Discovery Due</span></div><div class="text-xs text-slate-400 ml-4">Sep 5 &middot; 5:00 PM</div></div></div></div></div></div>';
+    };
+
+    pageRenderers['billing'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Billing & Invoices</h1><p class="text-sm text-slate-400">Manage invoices, payments, and trust accounting.</p></div><div class="flex gap-2"><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium" onclick="showToast(\'Invoice generated\',\'success\')"><i class="fas fa-file-invoice mr-1"></i> Generate Invoice</button><button class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm" onclick="showToast(\'Processing payment...\')"><i class="fas fa-credit-card mr-1"></i> Record Payment</button></div></div><div class="grid grid-cols-1 sm:grid-cols-3 gap-3"><div class="glass-card rounded-xl p-4"><div class="text-xl font-bold">$284,500</div><div class="text-xs text-slate-400">Total Billed YTD</div></div><div class="glass-card rounded-xl p-4"><div class="text-xl font-bold text-emerald-500">$197,800</div><div class="text-xs text-slate-400">Collected YTD</div></div><div class="glass-card rounded-xl p-4"><div class="text-xl font-bold text-amber-500">$86,700</div><div class="text-xs text-slate-400">Outstanding</div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Invoice #</th><th class="pb-3 font-medium">Client</th><th class="pb-3 font-medium">Amount</th><th class="pb-3 font-medium">Status</th><th class="pb-3 font-medium">Date</th><th class="pb-3 font-medium">Actions</th></tr></thead><tbody><tr class="border-b dark:border-slate-700/50"><td class="py-3 font-medium">INV-2026-089</td><td>Alice Smith</td><td>$12,500</td><td><span class="badge bg-emerald-100 text-emerald-700">Paid</span></td><td>Aug 10, 2026</td><td><button class="text-indigo-500 text-xs hover:underline" onclick="showToast(\'Viewing invoice\')">View</button></td></tr><tr class="border-b dark:border-slate-700/50"><td class="py-3 font-medium">INV-2026-088</td><td>Robert Johnson</td><td>$8,200</td><td><span class="badge bg-amber-100 text-amber-700">Pending</span></td><td>Aug 5, 2026</td><td><button class="text-indigo-500 text-xs hover:underline" onclick="showToast(\'Viewing invoice\')">View</button></td></tr><tr class="border-b dark:border-slate-700/50"><td class="py-3 font-medium">INV-2026-087</td><td>Sarah Davis</td><td>$15,000</td><td><span class="badge bg-rose-100 text-rose-700">Overdue</span></td><td>Jul 28, 2026</td><td><button class="text-indigo-500 text-xs hover:underline" onclick="showToast(\'Viewing invoice\')">View</button></td></tr><tr><td class="py-3 font-medium">INV-2026-086</td><td>Carlos Martinez</td><td>$5,800</td><td><span class="badge bg-emerald-100 text-emerald-700">Paid</span></td><td>Jul 22, 2026</td><td><button class="text-indigo-500 text-xs hover:underline" onclick="showToast(\'Viewing invoice\')">View</button></td></tr></tbody></table></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3"><i class="fas fa-piggy-bank text-indigo-500 mr-2"></i>Trust Accounting</h3><div class="grid grid-cols-1 sm:grid-cols-3 gap-3"><div><div class="text-sm text-slate-400">Total Trust Balance</div><div class="text-xl font-bold">$342,000</div></div><div><div class="text-sm text-slate-400">Pending Disbursements</div><div class="text-xl font-bold text-amber-500">$28,400</div></div><div><div class="text-sm text-slate-400">Trust Accounts</div><div class="text-xl font-bold">24</div></div></div></div></div>';
+    };
+
+    pageRenderers['portal'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Client Portal</h1><p class="text-sm text-slate-400">Client-facing case tracking and communication.</p></div><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium" onclick="showToast(\'Portal invite sent\',\'success\')"><i class="fas fa-user-plus mr-1"></i> Invite Client</button></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">'
+        + ['Track Cases|fa-folder-open|24 active', 'Track Service|fa-truck|12 in progress', 'Documents|fa-file-lines|48 shared', 'Invoices|fa-receipt|$86,700 outstanding'].map(function(p) {
+          var sp = p.split('|');
+          return '<div class="glass-card rounded-xl p-4 text-center cursor-pointer hover:scale-[1.02] transition" onclick="showToast(\'Opening ' + sp[0] + '\')"><div class="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center mx-auto mb-2"><i class="fas ' + sp[1] + ' text-indigo-500 text-xl"></i></div><div class="font-medium">' + sp[0] + '</div><div class="text-xs text-slate-400">' + sp[2] + '</div></div>';
+        }).join('') + '</div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Client Activity</h3><div class="space-y-3 text-sm"><div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Viewing client portal\')"><div class="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center font-bold text-indigo-500">AS</div><div class="flex-1"><div class="font-medium">Alice Smith</div><div class="text-xs text-slate-400">Viewed case documents &middot; 2 min ago</div></div><span class="text-xs text-slate-400">Just now</span></div><div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Viewing client portal\')"><div class="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center font-bold text-emerald-500">RJ</div><div class="flex-1"><div class="font-medium">Robert Johnson</div><div class="text-xs text-slate-400">Downloaded invoice INV-088 &middot; 1 hr ago</div></div><span class="text-xs text-slate-400">1 hour</span></div><div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Viewing client portal\')"><div class="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center font-bold text-amber-500">SD</div><div class="flex-1"><div class="font-medium">Sarah Davis</div><div class="text-xs text-slate-400">Sent message re: discovery &middot; 3 hrs ago</div></div><span class="text-xs text-slate-400">3 hours</span></div></div></div></div>';
+    };
+
+    pageRenderers['reports'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Reports</h1><p class="text-sm text-slate-400">Generate and view platform reports.</p></div><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium" onclick="showToast(\'Report generated\',\'success\')"><i class="fas fa-file-export mr-1"></i> Export Report</button></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">'
+        + ['Case Volume Report|Monthly case filings and status|fa-chart-bar|indigo', 'Revenue Report|Billing and collections summary|fa-dollar-sign|emerald', 'Attorney Performance|Productivity metrics|fa-user-tie|rose', 'Client Acquisition|New client trends|fa-users|amber', 'Deadline Compliance|Missed deadlines analysis|fa-calendar-check|sky', 'Trust Accounting Report|Trust balance overview|fa-piggy-bank|purple'].map(function(r) {
+          var p = r.split('|');
+          return '<div class="glass-card rounded-2xl p-5 shadow-soft cursor-pointer hover:scale-[1.01] transition" onclick="showToast(\'Generating ' + p[0] + '\')"><div class="flex items-center gap-3 mb-2"><div class="w-10 h-10 rounded-xl bg-' + p[3] + '-500/10 flex items-center justify-center"><i class="fas ' + p[2] + ' text-' + p[3] + '-500"></i></div><div><div class="font-semibold">' + p[0] + '</div><div class="text-xs text-slate-400">' + p[1] + '</div></div></div><div class="flex gap-2 mt-2"><button class="text-xs text-indigo-500 hover:underline" onclick="event.stopPropagation();showToast(\'Running ' + p[0] + '\')">Run Now</button><button class="text-xs text-slate-400 hover:underline" onclick="event.stopPropagation();showToast(\'Scheduling ' + p[0] + '\')">Schedule</button></div></div>';
+        }).join('') + '</div></div>';
+    };
+
+    pageRenderers['analytics'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Analytics</h1><p class="text-sm text-slate-400">Deep insights into your firm\'s performance.</p></div><div class="flex gap-2"><button class="px-3 py-1.5 rounded-lg text-sm bg-slate-100 dark:bg-slate-700">7D</button><button class="px-3 py-1.5 rounded-lg text-sm bg-indigo-500 text-white">30D</button><button class="px-3 py-1.5 rounded-lg text-sm bg-slate-100 dark:bg-slate-700">90D</button></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-4"><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Revenue Trend</h3><div class="h-56"><canvas id="chart_an_revenue" data-chart="line" data-labels=\'["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug"]\' data-values=\'[28,35,40,42,48,55,60,65]\' data-color="#6366f1"></canvas></div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Case Success Rate</h3><div class="h-56"><canvas id="chart_an_success" data-chart="pie" data-labels=\'["Won","Settled","Dismissed","Ongoing"]\' data-values=\'[55,25,8,12]\' data-color="#10b981"></canvas></div></div></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-3"><div class="glass-card rounded-xl p-4 text-center"><div class="text-2xl font-bold text-indigo-500">94%</div><div class="text-xs text-slate-400">Case Win Rate</div></div><div class="glass-card rounded-xl p-4 text-center"><div class="text-2xl font-bold text-emerald-500">18.5</div><div class="text-xs text-slate-400">Avg Days to Close</div></div><div class="glass-card rounded-xl p-4 text-center"><div class="text-2xl font-bold text-amber-500">$4,200</div><div class="text-xs text-slate-400">Avg Revenue/Case</div></div><div class="glass-card rounded-xl p-4 text-center"><div class="text-2xl font-bold text-rose-500">156</div><div class="text-xs text-slate-400">Cases YTD</div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Regional Heatmap <span class="text-xs text-slate-400 font-normal">(placeholder)</span></h3><div class="h-48 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400"><i class="fas fa-map mr-3 text-2xl"></i> Geographic case distribution map would render here</div></div></div>';
+    };
+
+    pageRenderers['messaging'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Messaging</h1><p class="text-sm text-slate-400">Internal and client communication.</p></div><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium" onclick="showToast(\'New message composed\')"><i class="fas fa-pen mr-1"></i> New Message</button></div><div class="grid grid-cols-1 lg:grid-cols-3 gap-4"><div class="glass-card rounded-2xl p-4 shadow-soft"><div class="space-y-1 text-sm"><div class="flex items-center gap-3 p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/10 cursor-pointer"><div class="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center font-bold text-indigo-500">AS</div><div class="flex-1"><div class="font-medium">Alice Smith</div><div class="text-xs text-slate-400">Case update needed</div></div><span class="text-xs text-slate-400">2m</span></div><div class="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"><div class="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center font-bold text-emerald-500">RJ</div><div class="flex-1"><div class="font-medium">Robert Johnson</div><div class="text-xs text-slate-400">Invoice question</div></div><span class="text-xs text-slate-400">1h</span></div><div class="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"><div class="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center font-bold text-amber-500">SD</div><div class="flex-1"><div class="font-medium">Sarah Davis</div><div class="text-xs text-slate-400">Discovery documents</div></div><span class="text-xs text-slate-400">3h</span></div><div class="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"><div class="w-8 h-8 rounded-full bg-rose-500/10 flex items-center justify-center font-bold text-rose-500">CM</div><div class="flex-1"><div class="font-medium">Carlos Martinez</div><div class="text-xs text-slate-400">Hearing prep</div></div><span class="text-xs text-slate-400">1d</span></div></div></div><div class="lg:col-span-2 glass-card rounded-2xl p-5 shadow-soft flex flex-col"><div class="flex items-center gap-3 pb-3 border-b dark:border-slate-700"><div class="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center font-bold text-indigo-500">AS</div><div><div class="font-medium">Alice Smith</div><div class="text-xs text-slate-400">Case: C-2026-0421</div></div></div><div class="flex-1 space-y-3 my-3 max-h-64 overflow-y-auto text-sm"><div class="flex justify-start"><div class="bg-slate-100 dark:bg-slate-700 p-3 rounded-2xl rounded-bl-sm max-w-[75%]">Hi John, do you have an update on the Smith case?</div></div><div class="flex justify-end"><div class="bg-indigo-500 text-white p-3 rounded-2xl rounded-br-sm max-w-[75%]">Hi Alice! Yes, we filed the motion yesterday. I\'ll share the document.</div></div><div class="flex justify-start"><div class="bg-slate-100 dark:bg-slate-700 p-3 rounded-2xl rounded-bl-sm max-w-[75%]">Great, thank you! When is the next hearing?</div></div><div class="flex justify-end"><div class="bg-indigo-500 text-white p-3 rounded-2xl rounded-br-sm max-w-[75%]">Scheduled for Sep 12 at 2 PM. I\'ll send a calendar invite.</div></div></div><div class="flex gap-2 pt-3 border-t dark:border-slate-700"><input type="text" placeholder="Type a message..." class="flex-1 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700/50 border-none focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-sm"><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm" onclick="showToast(\'Message sent\',\'success\')"><i class="fas fa-paper-plane"></i></button></div></div></div></div>';
+    };
+
+    pageRenderers['settings'] = function() {
+      return '<div class="fade-in space-y-5"><h1 class="text-2xl font-bold">Settings</h1><div class="grid grid-cols-1 lg:grid-cols-4 gap-4"><div class="glass-card rounded-2xl p-4 shadow-soft space-y-1 text-sm"><div class="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/10 cursor-pointer font-medium" onclick="showToast(\'Organization settings\')"><i class="fas fa-building mr-2 text-indigo-500"></i>Organization</div><div class="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Security settings\')"><i class="fas fa-shield mr-2"></i>Security</div><div class="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Billing settings\')"><i class="fas fa-credit-card mr-2"></i>Billing</div><div class="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Notification preferences\')"><i class="fas fa-bell mr-2"></i>Notifications</div><div class="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Permission settings\')"><i class="fas fa-lock mr-2"></i>Permissions</div><div class="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'API keys\')"><i class="fas fa-key mr-2"></i>API Keys</div><div class="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Integrations\')"><i class="fas fa-plug mr-2"></i>Integrations</div><div class="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Profile settings\')"><i class="fas fa-user mr-2"></i>Profile</div></div><div class="lg:col-span-3 glass-card rounded-2xl p-6 shadow-soft"><h3 class="font-semibold mb-4">Organization Settings</h3><div class="space-y-4 text-sm"><div><label class="block text-slate-400 mb-1">Firm Name</label><input type="text" value="Smith & Associates Law" class="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/30"></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-slate-400 mb-1">Email</label><input type="email" value="contact@smithlaw.com" class="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/30"></div><div><label class="block text-slate-400 mb-1">Phone</label><input type="text" value="(512) 555-0100" class="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/30"></div></div><div><label class="block text-slate-400 mb-1">Address</label><input type="text" value="100 Congress Ave, Suite 500, Austin TX 78701" class="w-full px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/30"></div><button class="px-6 py-2.5 rounded-xl bg-indigo-500 text-white font-medium hover:bg-indigo-600 transition" onclick="showToast(\'Settings saved\',\'success\')">Save Changes</button></div><div class="mt-6 pt-4 border-t dark:border-slate-700"><h4 class="font-semibold text-sm mb-2">Danger Zone</h4><button class="px-4 py-2 rounded-xl bg-rose-500 text-white text-sm hover:bg-rose-600" onclick="showToast(\'This action cannot be undone\',\'error\')">Delete Organization</button></div></div></div></div>';
+    };
+
+    pageRenderers['audit'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Audit Logs</h1><p class="text-sm text-slate-400">Track all platform activities.</p></div><button class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm" onclick="showToast(\'Exporting audit logs\')"><i class="fas fa-download mr-1"></i> Export</button></div><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Timestamp</th><th class="pb-3 font-medium">User</th><th class="pb-3 font-medium">Action</th><th class="pb-3 font-medium">Resource</th><th class="pb-3 font-medium">IP Address</th></tr></thead><tbody><tr class="border-b dark:border-slate-700/50 text-xs"><td class="py-3">Aug 16, 2026 10:32 AM</td><td>Sarah Johnson</td><td>Updated case status</td><td>C-2026-0421</td><td>192.168.1.42</td></tr><tr class="border-b dark:border-slate-700/50 text-xs"><td class="py-3">Aug 16, 2026 09:15 AM</td><td>Michael Chen</td><td>Uploaded document</td><td>Estate_Johnson.pdf</td><td>192.168.1.45</td></tr><tr class="border-b dark:border-slate-700/50 text-xs"><td class="py-3">Aug 16, 2026 08:00 AM</td><td>Emily Park</td><td>Created invoice</td><td>INV-2026-089</td><td>192.168.1.38</td></tr><tr class="border-b dark:border-slate-700/50 text-xs"><td class="py-3">Aug 15, 2026 04:45 PM</td><td>System</td><td>Backup completed</td><td>Database</td><td>10.0.0.1</td></tr><tr class="text-xs"><td class="py-3">Aug 15, 2026 03:20 PM</td><td>John Doe</td><td>Logged in</td><td>Session</td><td>203.0.113.42</td></tr></tbody></table><div class="flex items-center justify-between mt-4 pt-3 border-t dark:border-slate-700"><span class="text-xs text-slate-400">Showing 5 of 1,204 entries</span><div class="flex gap-1 text-xs"><button class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700">1</button><button class="px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">2</button><button class="px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">3</button><button class="px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">...</button></div></div></div></div>';
+    };
+
+    pageRenderers['attorneys'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Attorneys</h1><p class="text-sm text-slate-400">Manage your legal team.</p></div><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium" onclick="showToast(\'Attorney added\',\'success\')"><i class="fas fa-user-plus mr-1"></i> Add Attorney</button></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">'
+        + ['Sarah Johnson|Partner|Corporate|12 cases|indigo', 'Michael Chen|Associate|Estate|8 cases|emerald', 'Emily Park|Senior Associate|Family|15 cases|rose', 'David Kim|Associate|Litigation|6 cases|amber'].map(function(a) {
+          var p = a.split('|');
+          var init = p[0].split(' ').map(function(s) { return s[0]; }).join('');
+          return '<div class="glass-card rounded-2xl p-5 shadow-soft cursor-pointer hover:scale-[1.01] transition" onclick="showToast(\'Viewing ' + p[0] + '\')"><div class="flex items-center gap-3 mb-2"><div class="w-10 h-10 rounded-full bg-' + p[4] + '-500/10 flex items-center justify-center font-bold text-' + p[4] + '-500">' + init + '</div><div><div class="font-semibold">' + p[0] + '</div><div class="text-xs text-slate-400">' + p[1] + '</div></div></div><div class="text-xs text-slate-400"><div>' + p[2] + ' &middot; ' + p[3] + '</div></div></div>';
+        }).join('') + '</div></div>';
+    };
+
+    pageRenderers['trust'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Trust Accounting</h1><p class="text-sm text-slate-400">IOLTA and trust account management.</p></div><button class="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-medium" onclick="showToast(\'Trust transaction recorded\',\'success\')"><i class="fas fa-plus mr-1"></i> Record Transaction</button></div><div class="grid grid-cols-1 sm:grid-cols-3 gap-3"><div class="glass-card rounded-xl p-4"><div class="text-2xl font-bold">$342,000</div><div class="text-xs text-slate-400">Total Trust Balance</div></div><div class="glass-card rounded-xl p-4"><div class="text-2xl font-bold text-emerald-500">$12,400</div><div class="text-xs text-slate-400">Deposits This Month</div></div><div class="glass-card rounded-xl p-4"><div class="text-2xl font-bold text-rose-500">$8,200</div><div class="text-xs text-slate-400">Disbursements This Month</div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Date</th><th class="pb-3 font-medium">Client</th><th class="pb-3 font-medium">Type</th><th class="pb-3 font-medium">Amount</th><th class="pb-3 font-medium">Balance</th></tr></thead><tbody><tr class="border-b dark:border-slate-700/50"><td class="py-3">Aug 15</td><td>Alice Smith</td><td>Deposit</td><td class="text-emerald-500">+$5,000</td><td>$22,000</td></tr><tr class="border-b dark:border-slate-700/50"><td class="py-3">Aug 14</td><td>Robert Johnson</td><td>Disbursement</td><td class="text-rose-500">-$2,500</td><td>$17,000</td></tr><tr><td class="py-3">Aug 12</td><td>Sarah Davis</td><td>Deposit</td><td class="text-emerald-500">+$10,000</td><td>$19,500</td></tr></tbody></table></div></div>';
+    };
+
+    // AGENCY PAGES
+    pageRenderers['jobs'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Incoming Jobs</h1><p class="text-sm text-slate-400">47 active jobs &middot; 12 unassigned</p></div><button class="px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-medium" onclick="showToast(\'Job created\',\'success\')"><i class="fas fa-plus mr-1"></i> New Job</button></div><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Job ID</th><th class="pb-3 font-medium">Address</th><th class="pb-3 font-medium">Client</th><th class="pb-3 font-medium">Priority</th><th class="pb-3 font-medium">Status</th><th class="pb-3 font-medium">Created</th></tr></thead><tbody><tr class="border-b dark:border-slate-700/50"><td class="py-3 font-medium">SJ-0082</td><td>123 Main St, Austin TX</td><td>Smith Law</td><td><span class="badge bg-rose-100 text-rose-700">High</span></td><td><span class="badge bg-amber-100 text-amber-700">Unassigned</span></td><td>Today</td></tr><tr class="border-b dark:border-slate-700/50"><td class="py-3 font-medium">SJ-0081</td><td>456 Oak Ave, Dallas TX</td><td>Davis Legal</td><td><span class="badge bg-amber-100 text-amber-700">Medium</span></td><td><span class="badge bg-sky-100 text-sky-700">Assigned</span></td><td>Today</td></tr><tr class="border-b dark:border-slate-700/50"><td class="py-3 font-medium">SJ-0080</td><td>789 Pine Rd, Houston TX</td><td>Johnson &amp; Co</td><td><span class="badge bg-slate-100 text-slate-600">Low</span></td><td><span class="badge bg-emerald-100 text-emerald-700">In Transit</span></td><td>Yesterday</td></tr><tr><td class="py-3 font-medium">SJ-0079</td><td>321 Elm St, San Antonio TX</td><td>Martinez Law</td><td><span class="badge bg-rose-100 text-rose-700">High</span></td><td><span class="badge bg-amber-100 text-amber-700">Unassigned</span></td><td>Yesterday</td></tr></tbody></table></div></div>';
+    };
+
+    pageRenderers['assignments'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Assignments</h1><p class="text-sm text-slate-400">Track all server assignments.</p></div><button class="px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-medium" onclick="showToast(\'Smart assignment triggered\',\'success\')"><i class="fas fa-robot mr-1"></i> Auto-Assign</button></div><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Job ID</th><th class="pb-3 font-medium">Server</th><th class="pb-3 font-medium">Distance</th><th class="pb-3 font-medium">ETA</th><th class="pb-3 font-medium">Status</th><th class="pb-3 font-medium">Score</th></tr></thead><tbody><tr class="border-b dark:border-slate-700/50"><td>SJ-0081</td><td>Mike Torres</td><td>2.3 mi</td><td>12 min</td><td><span class="badge bg-sky-100 text-sky-700">Assigned</span></td><td>98</td></tr><tr class="border-b dark:border-slate-700/50"><td>SJ-0080</td><td>Sarah Miles</td><td>5.1 mi</td><td>18 min</td><td><span class="badge bg-emerald-100 text-emerald-700">In Transit</span></td><td>92</td></tr><tr><td>SJ-0078</td><td>James Brown</td><td>1.8 mi</td><td>8 min</td><td><span class="badge bg-emerald-100 text-emerald-700">Completed</span></td><td>95</td></tr></tbody></table></div></div>';
+    };
+
+    pageRenderers['dispatch'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Dispatch Center</h1><p class="text-sm text-slate-400">Interactive dispatch dashboard.</p></div><button class="px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-medium" onclick="showToast(\'Smart dispatch initiated\',\'success\')"><i class="fas fa-wand-magic mr-1"></i> Smart Dispatch</button></div><div class="grid grid-cols-1 lg:grid-cols-3 gap-4"><div class="lg:col-span-2 glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Map View <span class="text-xs text-slate-400 font-normal">(placeholder)</span></h3><div class="h-72 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400"><i class="fas fa-map-location-dot text-3xl mr-3"></i> Interactive dispatch map with real-time server locations</div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Nearest Servers</h3><div class="space-y-3 text-sm"><div class="flex items-center gap-3 p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/10"><div class="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center font-bold text-emerald-500">MT</div><div class="flex-1"><div class="font-medium">Mike Torres</div><div class="text-xs text-slate-400">2.3 mi &middot; ETA 12 min</div></div><span class="text-xs font-bold text-emerald-500">98</span></div><div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"><div class="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center font-bold text-amber-500">SM</div><div class="flex-1"><div class="font-medium">Sarah Miles</div><div class="text-xs text-slate-400">5.1 mi &middot; ETA 18 min</div></div><span class="text-xs font-bold text-amber-500">92</span></div><div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"><div class="w-8 h-8 rounded-full bg-sky-500/10 flex items-center justify-center font-bold text-sky-500">JB</div><div class="flex-1"><div class="font-medium">James Brown</div><div class="text-xs text-slate-400">4.7 mi &middot; ETA 22 min</div></div><span class="text-xs font-bold text-sky-500">88</span></div></div></div></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-3"><div class="glass-card rounded-xl p-4 text-center cursor-pointer hover:scale-[1.02] transition" onclick="showToast(\'Viewing territory: Austin\')"><div class="font-bold text-lg">12</div><div class="text-xs text-slate-400">Austin &middot; 5 servers</div></div><div class="glass-card rounded-xl p-4 text-center cursor-pointer hover:scale-[1.02] transition" onclick="showToast(\'Viewing territory: Dallas\')"><div class="font-bold text-lg">8</div><div class="text-xs text-slate-400">Dallas &middot; 4 servers</div></div><div class="glass-card rounded-xl p-4 text-center cursor-pointer hover:scale-[1.02] transition" onclick="showToast(\'Viewing territory: Houston\')"><div class="font-bold text-lg">15</div><div class="text-xs text-slate-400">Houston &middot; 6 servers</div></div><div class="glass-card rounded-xl p-4 text-center cursor-pointer hover:scale-[1.02] transition" onclick="showToast(\'Viewing territory: San Antonio\')"><div class="font-bold text-lg">7</div><div class="text-xs text-slate-400">San Antonio &middot; 3 servers</div></div></div></div>';
+    };
+
+    pageRenderers['scheduling'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Scheduling</h1><p class="text-sm text-slate-400">Optimize your server schedules.</p></div><button class="px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-medium" onclick="showToast(\'Route optimized\',\'success\')"><i class="fas fa-route mr-1"></i> Optimize Routes</button></div><div class="glass-card rounded-2xl p-5 shadow-soft"><div class="space-y-3">'
+        + ['Mike Torres|5 jobs|2.3 mi average|09:00 AM - 4:00 PM|emerald', 'Sarah Miles|3 jobs|5.1 mi average|10:00 AM - 2:00 PM|amber', 'James Brown|4 jobs|4.7 mi average|08:30 AM - 3:30 PM|sky'].map(function(s) {
+          var p = s.split('|');
+          var init = p[0].split(' ').map(function(x) { return x[0]; }).join('');
+          return '<div class="flex items-center gap-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer" onclick="showToast(\'Viewing ' + p[0] + ' schedule\')"><div class="w-10 h-10 rounded-full bg-' + p[4] + '-500/10 flex items-center justify-center font-bold text-' + p[4] + '-500">' + init + '</div><div class="flex-1"><div class="font-medium text-sm">' + p[0] + '</div><div class="text-xs text-slate-400">' + p[1] + ' &middot; ' + p[2] + ' &middot; ' + p[3] + '</div></div><i class="fas fa-chevron-right text-slate-400"></i></div>';
+        }).join('') + '</div></div></div>';
+    };
+
+    pageRenderers['territories'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Territories</h1><p class="text-sm text-slate-400">Manage service territories.</p></div><button class="px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-medium" onclick="showToast(\'Territory added\',\'success\')"><i class="fas fa-plus mr-1"></i> Add Territory</button></div><div class="glass-card rounded-2xl p-5 shadow-soft"><div class="h-48 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400"><i class="fas fa-map mr-3 text-2xl"></i> Territory map with zones and coverage areas</div></div><div class="grid grid-cols-1 sm:grid-cols-3 gap-3"><div class="glass-card rounded-xl p-4"><div class="font-bold text-lg">Austin Metro</div><div class="text-xs text-slate-400">5 servers &middot; 12 active jobs</div></div><div class="glass-card rounded-xl p-4"><div class="font-bold text-lg">Dallas-Fort Worth</div><div class="text-xs text-slate-400">4 servers &middot; 8 active jobs</div></div><div class="glass-card rounded-xl p-4"><div class="font-bold text-lg">Houston</div><div class="text-xs text-slate-400">6 servers &middot; 15 active jobs</div></div></div></div>';
+    };
+
+    pageRenderers['marketplace'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Marketplace</h1><p class="text-sm text-slate-400">Browse and post service requests.</p></div><button class="px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-medium" onclick="showToast(\'Request posted\',\'success\')"><i class="fas fa-store mr-1"></i> Post Request</button></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">'
+        + ['Serve Smith Complaint|Austin TX|$85|2 bids|urgent', 'Deliver Johnson Subpoena|Dallas TX|$65|5 bids|standard', 'Martinez Motion Service|San Antonio TX|$95|1 bid|urgent', 'Davis Discovery Docs|Houston TX|$75|3 bids|standard', 'Thompson Summons|Austin TX|$80|4 bids|standard', 'Rodriguez Court Order|Dallas TX|$70|0 bids|open'].map(function(m) {
+          var p = m.split('|');
+          return '<div class="glass-card rounded-2xl p-5 shadow-soft cursor-pointer hover:scale-[1.01] transition" onclick="showToast(\'Viewing marketplace listing\')"><div class="flex items-center justify-between mb-2"><span class="font-semibold text-sm">' + p[0] + '</span><span class="badge ' + (p[4] === 'urgent' ? 'bg-rose-100 text-rose-700' : 'bg-sky-100 text-sky-700') + '">' + p[4] + '</span></div><div class="text-xs text-slate-400 space-y-0.5"><div><i class="fas fa-location-dot mr-1 w-3"></i>' + p[1] + '</div><div><i class="fas fa-tag mr-1 w-3"></i>' + p[2] + '</div><div><i class="fas fa-handshake mr-1 w-3"></i>' + p[3] + '</div></div></div>';
+        }).join('') + '</div></div>';
+    };
+
+    // ADMIN PAGES
+    pageRenderers['organizations'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Organizations</h1><p class="text-sm text-slate-400">All organizations on the platform.</p></div><button class="px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-medium" onclick="showToast(\'Organization created\',\'success\')"><i class="fas fa-plus mr-1"></i> New Organization</button></div><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Name</th><th class="pb-3 font-medium">Type</th><th class="pb-3 font-medium">Plan</th><th class="pb-3 font-medium">Users</th><th class="pb-3 font-medium">Revenue</th><th class="pb-3 font-medium">Status</th></tr></thead><tbody><tr class="border-b dark:border-slate-700/50"><td>Smith &amp; Associates</td><td>Law Firm</td><td>Enterprise</td><td>12</td><td>$84,200</td><td><span class="badge bg-emerald-100 text-emerald-700">Active</span></td></tr><tr class="border-b dark:border-slate-700/50"><td>Texas Process Servers</td><td>Agency</td><td>Professional</td><td>8</td><td>$52,400</td><td><span class="badge bg-emerald-100 text-emerald-700">Active</span></td></tr><tr class="border-b dark:border-slate-700/50"><td>Davis Legal Services</td><td>Law Firm</td><td>Starter</td><td>4</td><td>$12,800</td><td><span class="badge bg-amber-100 text-amber-700">Trial</span></td></tr><tr><td>QuickServe Nationwide</td><td>Agency</td><td>Enterprise</td><td>25</td><td>$156,000</td><td><span class="badge bg-emerald-100 text-emerald-700">Active</span></td></tr></tbody></table></div></div>';
+    };
+
+    pageRenderers['lawfirms'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Law Firms</h1><p class="text-sm text-slate-400">24 firms registered on the platform.</p></div><button class="px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-medium" onclick="showToast(\'Filtering firms\')"><i class="fas fa-filter mr-1"></i> Filter</button></div><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Firm</th><th class="pb-3 font-medium">Plan</th><th class="pb-3 font-medium">Cases</th><th class="pb-3 font-medium">Revenue</th><th class="pb-3 font-medium">Status</th></tr></thead><tbody><tr class="border-b dark:border-slate-700/50"><td>Smith &amp; Associates</td><td>Enterprise</td><td>42</td><td>$84,200</td><td><span class="badge bg-emerald-100 text-emerald-700">Active</span></td></tr><tr class="border-b dark:border-slate-700/50"><td>Davis Legal Services</td><td>Starter</td><td>15</td><td>$12,800</td><td><span class="badge bg-amber-100 text-amber-700">Trial</span></td></tr><tr><td>Johnson &amp; Co</td><td>Professional</td><td>28</td><td>$45,600</td><td><span class="badge bg-emerald-100 text-emerald-700">Active</span></td></tr></tbody></table></div></div>';
+    };
+
+    pageRenderers['agencies'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Serving Agencies</h1><p class="text-sm text-slate-400">18 agencies on the platform.</p></div><button class="px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-medium" onclick="showToast(\'Filtering agencies\')"><i class="fas fa-filter mr-1"></i> Filter</button></div><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Agency</th><th class="pb-3 font-medium">Servers</th><th class="pb-3 font-medium">Jobs/Month</th><th class="pb-3 font-medium">Revenue</th><th class="pb-3 font-medium">Status</th></tr></thead><tbody><tr class="border-b dark:border-slate-700/50"><td>Texas Process Servers</td><td>8</td><td>156</td><td>$52,400</td><td><span class="badge bg-emerald-100 text-emerald-700">Active</span></td></tr><tr><td>QuickServe Nationwide</td><td>25</td><td>420</td><td>$156,000</td><td><span class="badge bg-emerald-100 text-emerald-700">Active</span></td></tr></tbody></table></div></div>';
+    };
+
+    pageRenderers['subscriptions'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Subscription Plans</h1><p class="text-sm text-slate-400">Manage platform pricing and plans.</p></div><button class="px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-medium" onclick="showToast(\'Plan created\',\'success\')"><i class="fas fa-plus mr-1"></i> New Plan</button></div><div class="grid grid-cols-1 sm:grid-cols-3 gap-4"><div class="glass-card rounded-2xl p-6 shadow-soft text-center"><h3 class="font-semibold text-lg">Starter</h3><div class="text-3xl font-bold my-3">$49<span class="text-base font-normal text-slate-400">/mo</span></div><div class="text-sm text-slate-400 space-y-1"><div>Up to 5 users</div><div>50 jobs/month</div><div>Basic analytics</div></div><button class="mt-4 w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-sm font-medium" onclick="showToast(\'Editing Starter plan\')">Edit</button></div><div class="glass-card rounded-2xl p-6 shadow-soft text-center border-2 border-rose-500/30"><div class="badge bg-rose-500 text-white mb-2">Popular</div><h3 class="font-semibold text-lg">Professional</h3><div class="text-3xl font-bold my-3">$149<span class="text-base font-normal text-slate-400">/mo</span></div><div class="text-sm text-slate-400 space-y-1"><div>Up to 25 users</div><div>Unlimited jobs</div><div>Advanced analytics</div><div>API access</div></div><button class="mt-4 w-full py-2.5 rounded-xl bg-rose-500 text-white text-sm font-medium hover:bg-rose-600" onclick="showToast(\'Editing Professional plan\')">Edit</button></div><div class="glass-card rounded-2xl p-6 shadow-soft text-center"><h3 class="font-semibold text-lg">Enterprise</h3><div class="text-3xl font-bold my-3">$399<span class="text-base font-normal text-slate-400">/mo</span></div><div class="text-sm text-slate-400 space-y-1"><div>Unlimited users</div><div>Unlimited jobs</div><div>All features</div><div>Dedicated support</div><div>Custom integrations</div></div><button class="mt-4 w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-sm font-medium" onclick="showToast(\'Editing Enterprise plan\')">Edit</button></div></div></div>';
+    };
+
+    pageRenderers['support'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Support Tickets</h1><p class="text-sm text-slate-400">12 open tickets &middot; 4 urgent</p></div><button class="px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-medium" onclick="showToast(\'Creating ticket...\')"><i class="fas fa-ticket mr-1"></i> New Ticket</button></div><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Ticket #</th><th class="pb-3 font-medium">Subject</th><th class="pb-3 font-medium">Organization</th><th class="pb-3 font-medium">Priority</th><th class="pb-3 font-medium">Status</th></tr></thead><tbody><tr class="border-b dark:border-slate-700/50"><td>TK-2026-089</td><td>Unable to upload documents</td><td>Smith &amp; Associates</td><td><span class="badge bg-rose-100 text-rose-700">High</span></td><td><span class="badge bg-amber-100 text-amber-700">Open</span></td></tr><tr class="border-b dark:border-slate-700/50"><td>TK-2026-088</td><td>Billing discrepancy</td><td>Texas Process Servers</td><td><span class="badge bg-amber-100 text-amber-700">Medium</span></td><td><span class="badge bg-sky-100 text-sky-700">In Progress</span></td></tr><tr><td>TK-2026-087</td><td>New user onboarding</td><td>Davis Legal</td><td><span class="badge bg-slate-100 text-slate-600">Low</span></td><td><span class="badge bg-emerald-100 text-emerald-700">Resolved</span></td></tr></tbody></table></div></div>';
+    };
+
+    pageRenderers['compliance'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Compliance Engine</h1><p class="text-sm text-slate-400">Jurisdictional rules and validation.</p></div><button class="px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-medium" onclick="showToast(\'Running compliance check\',\'success\')"><i class="fas fa-check-double mr-1"></i> Validate All</button></div><div class="grid grid-cols-1 lg:grid-cols-3 gap-4"><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">State Rules</h3><div class="space-y-2 text-sm"><div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Viewing Texas rules\')"><span>Texas</span><span class="badge bg-emerald-100 text-emerald-700">Compliant</span></div><div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Viewing California rules\')"><span>California</span><span class="badge bg-emerald-100 text-emerald-700">Compliant</span></div><div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Viewing New York rules\')"><span>New York</span><span class="badge bg-amber-100 text-amber-700">Pending Review</span></div><div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Viewing Florida rules\')"><span>Florida</span><span class="badge bg-emerald-100 text-emerald-700">Compliant</span></div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">County Rules</h3><div class="space-y-2 text-sm"><div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50"><span>Travis County, TX</span><span class="badge bg-emerald-100 text-emerald-700">Valid</span></div><div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50"><span>Dallas County, TX</span><span class="badge bg-emerald-100 text-emerald-700">Valid</span></div><div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50"><span>Harris County, TX</span><span class="badge bg-amber-100 text-amber-700">Warning</span></div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Jurisdictions</h3><div class="space-y-2 text-sm"><div class="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Viewing jurisdiction\')"><span class="font-medium">Texas Eastern District</span><div class="text-xs text-slate-400">Federal &middot; 2 rules updated</div></div><div class="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Viewing jurisdiction\')"><span class="font-medium">Texas Western District</span><div class="text-xs text-slate-400">Federal &middot; Up to date</div></div><div class="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Viewing jurisdiction\')"><span class="font-medium">Texas Southern District</span><div class="text-xs text-slate-400">Federal &middot; 1 pending change</div></div></div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Active Warnings</h3><div class="space-y-2 text-sm"><div class="flex items-center gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10"><i class="fas fa-triangle-exclamation text-amber-500"></i><span>Harris County requires e-filing by Aug 30, 2026</span></div><div class="flex items-center gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10"><i class="fas fa-triangle-exclamation text-amber-500"></i><span>New York service window reduced to 90 days</span></div><div class="flex items-center gap-3 p-3 rounded-lg bg-sky-50 dark:bg-sky-900/10"><i class="fas fa-info-circle text-sky-500"></i><span>California fee schedule updated - review required</span></div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Compliance Version History</h3><div class="space-y-2 text-sm"><div class="flex items-center justify-between py-2 border-b dark:border-slate-700/50"><span><span class="font-medium">v2.4.1</span> - Texas rule update</span><span class="text-slate-400">Aug 14, 2026</span><button class="text-rose-500 text-xs hover:underline" onclick="showToast(\'Rolled back to v2.4.1\',\'success\')">Rollback</button></div><div class="flex items-center justify-between py-2 border-b dark:border-slate-700/50"><span><span class="font-medium">v2.4.0</span> - California rule update</span><span class="text-slate-400">Aug 1, 2026</span><button class="text-rose-500 text-xs hover:underline" onclick="showToast(\'Rolled back to v2.4.0\',\'success\')">Rollback</button></div><div class="flex items-center justify-between py-2"><span><span class="font-medium">v2.3.0</span> - New York e-filing rules</span><span class="text-slate-400">Jul 15, 2026</span><button class="text-rose-500 text-xs hover:underline" onclick="showToast(\'Rolled back to v2.3.0\',\'success\')">Rollback</button></div></div></div></div>';
+    };
+
+    pageRenderers['automation'] = function() {
+      var steps = ['Case Created', 'Document Ready', 'Court Filing', 'Service Request', 'Server Match', 'Assignment', 'Attempt', 'Evidence Upload', 'Affidavit', 'Client Notification', 'Invoice'];
+      var flowHtml = steps.map(function(s, i) {
+        return '<div class="flex items-center gap-2"><div class="px-4 py-2.5 rounded-xl ' + (i < 7 ? 'bg-rose-500 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-400') + ' text-sm font-medium cursor-pointer hover:scale-105 transition shadow" onclick="showToast(\'Step: ' + s + '\')">' + s + '</div>' + (i < steps.length - 1 ? '<i class="fas fa-arrow-right text-slate-300 dark:text-slate-600"></i>' : '') + '</div>';
+      }).join('');
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Automation</h1><p class="text-sm text-slate-400">Visual workflow builder and automation rules.</p></div><div class="flex gap-2"><button class="px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-medium" onclick="showToast(\'Workflow created\',\'success\')"><i class="fas fa-plus mr-1"></i> New Workflow</button><button class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm" onclick="showToast(\'Workflow published\',\'success\')"><i class="fas fa-play mr-1"></i> Activate</button></div></div><div class="glass-card rounded-2xl p-6 shadow-soft"><h3 class="font-semibold mb-4">Service Workflow Pipeline</h3><div class="flex flex-wrap items-center gap-2 justify-center">' + flowHtml + '</div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-4"><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Automation Rules</h3><div class="space-y-2 text-sm"><div class="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Editing rule\')"><div><span class="font-medium">Auto-assign high priority</span><div class="text-xs text-slate-400">Assign jobs &gt; $100 to top-rated server</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked class="sr-only peer" onchange="showToast(this.checked?\'Rule enabled\':\'Rule disabled\',\'success\')"><div class="w-9 h-5 bg-slate-300 dark:bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-rose-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div></label></div><div class="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Editing rule\')"><div><span class="font-medium">Reattempt notification</span><div class="text-xs text-slate-400">Notify client after 2 failed attempts</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked class="sr-only peer" onchange="showToast(this.checked?\'Rule enabled\':\'Rule disabled\',\'success\')"><div class="w-9 h-5 bg-slate-300 dark:bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-rose-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div></label></div><div class="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onclick="showToast(\'Editing rule\')"><div><span class="font-medium">Auto-generate affidavit</span><div class="text-xs text-slate-400">Create affidavit upon successful service</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" class="sr-only peer" onchange="showToast(this.checked?\'Rule enabled\':\'Rule disabled\',\'success\')"><div class="w-9 h-5 bg-slate-300 dark:bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-rose-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div></label></div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">AI Automation Settings</h3><div class="space-y-3 text-sm"><div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50"><span>AI Address Validation</span><span class="badge bg-emerald-100 text-emerald-700">Active</span></div><div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50"><span>AI Server Matching</span><span class="badge bg-emerald-100 text-emerald-700">Active</span></div><div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50"><span>AI Route Optimization</span><span class="badge bg-amber-100 text-amber-700">Beta</span></div><div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50"><span>AI Affidavit Drafting</span><span class="badge bg-sky-100 text-sky-700">Training</span></div></div></div></div></div>';
+    };
+
+    pageRenderers['ai'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">AI Module</h1><p class="text-sm text-slate-400">Artificial intelligence powered features.</p></div><button class="px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-medium" onclick="showToast(\'AI analysis started\')"><i class="fas fa-brain mr-1"></i> Run AI Analysis</button></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"><div class="glass-card rounded-xl p-4 text-center cursor-pointer hover:scale-[1.02] transition" onclick="showToast(\'AI Case Summary generated\')"><div class="w-12 h-12 rounded-xl bg-rose-500/10 flex items-center justify-center mx-auto mb-2"><i class="fas fa-file-lines text-rose-500 text-xl"></i></div><div class="font-medium text-sm">AI Case Summary</div><div class="text-xs text-slate-400">Summarize case details</div></div><div class="glass-card rounded-xl p-4 text-center cursor-pointer hover:scale-[1.02] transition" onclick="showToast(\'AI Document Summary generated\')"><div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-2"><i class="fas fa-file-contract text-emerald-500 text-xl"></i></div><div class="font-medium text-sm">AI Document Summary</div><div class="text-xs text-slate-400">Extract key info</div></div><div class="glass-card rounded-xl p-4 text-center cursor-pointer hover:scale-[1.02] transition" onclick="showToast(\'Address validated\',\'success\')"><div class="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center mx-auto mb-2"><i class="fas fa-map-pin text-amber-500 text-xl"></i></div><div class="font-medium text-sm">Address Validation</div><div class="text-xs text-slate-400">Verify serve addresses</div></div><div class="glass-card rounded-xl p-4 text-center cursor-pointer hover:scale-[1.02] transition" onclick="showToast(\'AI recommendation generated\')"><div class="w-12 h-12 rounded-xl bg-sky-500/10 flex items-center justify-center mx-auto mb-2"><i class="fas fa-clock text-sky-500 text-xl"></i></div><div class="font-medium text-sm">Serve Time Rec</div><div class="text-xs text-slate-400">Optimal serve window</div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3"><i class="fas fa-robot text-rose-500 mr-2"></i>AI Assistant</h3><div class="space-y-3 text-sm max-h-48 overflow-y-auto mb-3"><div class="flex justify-start"><div class="bg-slate-100 dark:bg-slate-700 p-3 rounded-2xl rounded-bl-sm max-w-[80%]">Hello! I\'m your AI assistant. How can I help you today?</div></div><div class="flex justify-end"><div class="bg-rose-500 text-white p-3 rounded-2xl rounded-br-sm max-w-[80%]">Show me a summary of the Smith case.</div></div><div class="flex justify-start"><div class="bg-slate-100 dark:bg-slate-700 p-3 rounded-2xl rounded-bl-sm max-w-[80%]">**Smith vs. Corporation** (C-2026-0421): Active civil litigation. Next hearing Sep 12. Discovery in progress. 3 depositions completed.</div></div></div><div class="flex gap-2"><input type="text" placeholder="Ask AI anything..." class="flex-1 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 border-none focus:outline-none focus:ring-2 focus:ring-rose-500/30 text-sm"><button class="px-4 py-2.5 rounded-xl bg-rose-500 text-white text-sm" onclick="showToast(\'AI processing...\')"><i class="fas fa-paper-plane"></i></button></div></div></div>';
+    };
+
+    pageRenderers['security'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Security</h1><p class="text-sm text-slate-400">Platform security and access controls.</p></div><button class="px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-medium" onclick="showToast(\'Security scan initiated\',\'success\')"><i class="fas fa-shield mr-1"></i> Run Scan</button></div><div class="grid grid-cols-1 sm:grid-cols-3 gap-3"><div class="glass-card rounded-xl p-4"><div class="text-2xl font-bold text-emerald-500">A+</div><div class="text-xs text-slate-400">Security Rating</div></div><div class="glass-card rounded-xl p-4"><div class="text-2xl font-bold">256-bit</div><div class="text-xs text-slate-400">Encryption</div></div><div class="glass-card rounded-xl p-4"><div class="text-2xl font-bold">99.9%</div><div class="text-xs text-slate-400">Uptime</div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Recent Security Events</h3><div class="space-y-2 text-sm"><div class="flex items-center justify-between py-2 border-b dark:border-slate-700/50"><span><i class="fas fa-user-lock text-indigo-500 mr-2"></i>Admin login from new device</span><span class="text-slate-400 text-xs">2 hours ago</span></div><div class="flex items-center justify-between py-2 border-b dark:border-slate-700/50"><span><i class="fas fa-key text-amber-500 mr-2"></i>API key rotated</span><span class="text-slate-400 text-xs">1 day ago</span></div><div class="flex items-center justify-between py-2"><span><i class="fas fa-shield text-emerald-500 mr-2"></i>Security audit completed</span><span class="text-slate-400 text-xs">3 days ago</span></div></div></div></div>';
+    };
+
+    // SERVER PAGES
+    pageRenderers['todayjobs'] = function() {
+      var jobs = [
+        ['123 Main St, Austin TX', 'Completed', '8:30 AM', 'bg-emerald-500', 'fa-check-circle'],
+        ['456 Oak Ave, Dallas TX', 'In Progress', '10:15 AM', 'bg-amber-500', 'fa-spinner'],
+        ['789 Pine Rd, Houston TX', 'Upcoming', '1:00 PM', 'bg-sky-500', 'fa-clock'],
+        ['321 Elm St, San Antonio TX', 'Upcoming', '3:00 PM', 'bg-slate-400', 'fa-clock'],
+        ['654 Maple Dr, Austin TX', 'Pending', '5:00 PM', 'bg-slate-400', 'fa-clock']
+      ];
+      var html = jobs.map(function(j) {
+        var badgeClass = j[1] === 'Completed' ? 'bg-emerald-100 text-emerald-700' : j[1] === 'In Progress' ? 'bg-amber-100 text-amber-700' : j[1] === 'Upcoming' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600';
+        return '<div class="glass-card rounded-2xl p-4 shadow-soft flex items-center gap-4 cursor-pointer hover:scale-[1.01] transition" onclick="showToast(\'Opening job details\')"><div class="w-10 h-10 rounded-xl ' + j[3].replace('bg-', 'bg-').split(' ')[0] + '/10 flex items-center justify-center"><i class="fas ' + j[4] + ' text-' + j[3].replace('bg-', '') + '"></i></div><div class="flex-1"><div class="font-medium text-sm">' + j[0] + '</div><div class="text-xs text-slate-400">' + j[1] + ' &middot; ' + j[2] + '</div></div><span class="badge ' + badgeClass + '">' + j[1] + '</span></div>';
+      }).join('');
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Today\'s Jobs</h1><p class="text-sm text-slate-400">5 jobs scheduled &middot; 3 completed</p></div><button class="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium" onclick="showToast(\'Starting route optimization\',\'success\')"><i class="fas fa-route mr-1"></i> Optimize Route</button></div><div class="space-y-3">' + html + '</div></div>';
+    };
+
+    pageRenderers['upcoming'] = function() {
+      var jobs = [
+        ['789 Pine Rd, Houston TX', 'Wed, Aug 18', '1:00 PM', 'Johnson &amp; Co', '$85'],
+        ['321 Elm St, San Antonio TX', 'Thu, Aug 19', '10:00 AM', 'Martinez Law', '$95'],
+        ['654 Maple Dr, Austin TX', 'Fri, Aug 20', '9:00 AM', 'Smith &amp; Associates', '$75'],
+        ['987 Cedar Ln, Dallas TX', 'Mon, Aug 23', '11:00 AM', 'Davis Legal', '$80']
+      ];
+      var html = jobs.map(function(j) {
+        return '<div class="glass-card rounded-2xl p-5 shadow-soft cursor-pointer hover:scale-[1.01] transition" onclick="showToast(\'Viewing upcoming job\')"><div class="flex items-center justify-between mb-2"><span class="font-semibold text-sm">' + j[0] + '</span><span class="text-xs text-amber-500 font-medium">' + j[3] + '</span></div><div class="text-xs text-slate-400"><i class="far fa-calendar mr-1"></i>' + j[1] + ' &middot; ' + j[2] + '</div><div class="text-xs font-medium mt-1">Fee: ' + j[4] + '</div></div>';
+      }).join('');
+      return '<div class="fade-in space-y-5"><h1 class="text-2xl font-bold">Upcoming Jobs</h1><div class="grid grid-cols-1 sm:grid-cols-2 gap-3">' + html + '</div></div>';
+    };
+
+    pageRenderers['mapnav'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Map &amp; Navigation</h1><p class="text-sm text-slate-400">GPS tracking and route navigation.</p></div><div class="flex gap-2"><button class="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium" onclick="showToast(\'GPS tracking started\',\'success\')"><i class="fas fa-satellite mr-1"></i> Start GPS</button><button class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm" onclick="showToast(\'Route calculated\',\'success\')"><i class="fas fa-route mr-1"></i> Navigate</button></div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><div class="h-72 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400"><i class="fas fa-map-location-dot text-3xl mr-3"></i> Live GPS tracking map with route optimization</div></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-3"><div class="glass-card rounded-xl p-3 text-center"><div class="font-bold">2.3 mi</div><div class="text-xs text-slate-400">To Next Job</div></div><div class="glass-card rounded-xl p-3 text-center"><div class="font-bold">12 min</div><div class="text-xs text-slate-400">ETA</div></div><div class="glass-card rounded-xl p-3 text-center"><div class="font-bold">4.8</div><div class="text-xs text-slate-400">GPS Accuracy</div></div><div class="glass-card rounded-xl p-3 text-center"><div class="font-bold">32&deg;N</div><div class="text-xs text-slate-400">Current Coordinates</div></div></div></div>';
+    };
+
+    pageRenderers['jobdetails'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Job Details</h1><p class="text-sm text-slate-400">SJ-2026-0082 &middot; 123 Main St, Austin TX</p></div><button class="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium" onclick="showToast(\'Starting job\',\'success\')"><i class="fas fa-play mr-1"></i> Start Job</button></div><div class="grid grid-cols-1 lg:grid-cols-3 gap-4"><div class="lg:col-span-2 glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Job Information</h3><div class="grid grid-cols-2 gap-4 text-sm"><div><span class="text-slate-400">Client:</span><span class="ml-2 font-medium">Smith Law</span></div><div><span class="text-slate-400">Case:</span><span class="ml-2">C-2026-0421</span></div><div><span class="text-slate-400">Document:</span><span class="ml-2">Complaint</span></div><div><span class="text-slate-400">Priority:</span><span class="ml-2 badge bg-rose-100 text-rose-700">High</span></div><div><span class="text-slate-400">Attempts:</span><span class="ml-2">2</span></div><div><span class="text-slate-400">Deadline:</span><span class="ml-2">Aug 20, 2026</span></div></div><div class="mt-4"><h4 class="font-semibold text-sm mb-2">Attempt History</h4><div class="space-y-2 text-xs"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Attempt 1 - No answer &middot; Aug 15, 4:30 PM</div><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Attempt 2 - Business closed &middot; Aug 16, 9:15 AM</div></div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft"><h3 class="font-semibold mb-3">Quick Actions</h3><div class="space-y-2"><button class="w-full px-4 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-medium hover:bg-amber-600" onclick="showToast(\'Recording attempt...\')"><i class="fas fa-pen mr-1"></i> Record Attempt</button><button class="w-full px-4 py-2.5 rounded-xl bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600" onclick="showToast(\'Uploading photo...\')"><i class="fas fa-camera mr-1"></i> Upload Photo</button><button class="w-full px-4 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-medium hover:bg-emerald-600" onclick="showToast(\'Marking as served\',\'success\')"><i class="fas fa-check mr-1"></i> Mark Served</button><button class="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm" onclick="showToast(\'Reporting failed\',\'error\')"><i class="fas fa-times mr-1"></i> Report Failed</button></div></div></div></div>';
+    };
+
+    pageRenderers['attempts'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Attempt Recording</h1><p class="text-sm text-slate-400">Log details for each service attempt.</p></div><button class="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium" onclick="showToast(\'Attempt recorded\',\'success\')"><i class="fas fa-save mr-1"></i> Save Attempt</button></div><div class="glass-card rounded-2xl p-6 shadow-soft"><div class="space-y-4 text-sm"><div><label class="block text-slate-400 mb-1">Job ID</label><select class="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:outline-none focus:ring-2 focus:ring-amber-500/30"><option>SJ-2026-0082 - 123 Main St</option><option>SJ-2026-0081 - 456 Oak Ave</option><option>SJ-2026-0080 - 789 Pine Rd</option></select></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-slate-400 mb-1">Attempt #</label><input type="number" value="3" class="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:outline-none focus:ring-2 focus:ring-amber-500/30"></div><div><label class="block text-slate-400 mb-1">Date &amp; Time</label><input type="text" value="Aug 16, 2026 1:30 PM" class="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:outline-none focus:ring-2 focus:ring-amber-500/30"></div></div><div><label class="block text-slate-400 mb-1">Result</label><select class="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:outline-none focus:ring-2 focus:ring-amber-500/30"><option>Successful Service</option><option>No Answer</option><option>Business Closed</option><option>Refused Service</option><option>Wrong Address</option><option>Other</option></select></div><div><label class="block text-slate-400 mb-1">Notes</label><textarea rows="3" class="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:outline-none focus:ring-2 focus:ring-amber-500/30" placeholder="Describe the attempt details..."></textarea></div></div></div></div>';
+    };
+
+    pageRenderers['evidence'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Evidence</h1><p class="text-sm text-slate-400">Photos, videos, and documents.</p></div><button class="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium" onclick="showToast(\'Upload started\')"><i class="fas fa-camera mr-1"></i> Upload Evidence</button></div><div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">'
+        + ['Photo_001.jpg|Photo|2.3 MB|Today', 'Video_Attempt_1.mp4|Video|45 MB|Today', 'Photo_002.jpg|Photo|1.8 MB|Yesterday', 'Note_Attempt2.pdf|Document|0.5 MB|Yesterday', 'Photo_003.jpg|Photo|3.1 MB|Aug 14', 'Video_Attempt_2.mp4|Video|62 MB|Aug 13'].map(function(e) {
+          var p = e.split('|');
+          var icon = p[1] === 'Photo' ? 'fa-image' : p[1] === 'Video' ? 'fa-video' : 'fa-file';
+          return '<div class="glass-card rounded-xl p-3 shadow-soft cursor-pointer hover:scale-[1.01] transition" onclick="showToast(\'Viewing ' + p[0] + '\')"><div class="h-24 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center mb-2"><i class="fas ' + icon + ' text-2xl text-slate-400"></i></div><div class="text-xs font-medium truncate">' + p[0] + '</div><div class="text-xs text-slate-400">' + p[2] + ' &middot; ' + p[3] + '</div></div>';
+        }).join('') + '</div></div>';
+    };
+
+    pageRenderers['affidavits'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Affidavits</h1><p class="text-sm text-slate-400">Generate and manage affidavits of service.</p></div><button class="px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-medium" onclick="showToast(\'Affidavit generated\',\'success\')"><i class="fas fa-file-pen mr-1"></i> Generate Affidavit</button></div><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Affidavit ID</th><th class="pb-3 font-medium">Job ID</th><th class="pb-3 font-medium">Server</th><th class="pb-3 font-medium">Status</th><th class="pb-3 font-medium">Filed</th><th class="pb-3 font-medium">Actions</th></tr></thead><tbody><tr class="border-b dark:border-slate-700/50"><td>AF-2026-042</td><td>SJ-0080</td><td>Sarah Miles</td><td><span class="badge bg-emerald-100 text-emerald-700">Filed</span></td><td>Aug 14, 2026</td><td><button class="text-emerald-500 text-xs hover:underline" onclick="showToast(\'Viewing affidavit\')">View</button></td></tr><tr class="border-b dark:border-slate-700/50"><td>AF-2026-041</td><td>SJ-0078</td><td>James Brown</td><td><span class="badge bg-emerald-100 text-emerald-700">Filed</span></td><td>Aug 12, 2026</td><td><button class="text-emerald-500 text-xs hover:underline" onclick="showToast(\'Viewing affidavit\')">View</button></td></tr><tr><td>AF-2026-040</td><td>SJ-0076</td><td>Mike Torres</td><td><span class="badge bg-amber-100 text-amber-700">Draft</span></td><td>&mdash;</td><td><button class="text-emerald-500 text-xs hover:underline" onclick="showToast(\'Editing affidavit\')">Edit</button></td></tr></tbody></table></div></div>';
+    };
+
+    pageRenderers['payments'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Payments</h1><p class="text-sm text-slate-400">Earnings and payment history.</p></div><button class="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium" onclick="showToast(\'Withdrawal initiated\',\'success\')"><i class="fas fa-money-bill-transfer mr-1"></i> Withdraw</button></div><div class="grid grid-cols-1 sm:grid-cols-3 gap-3"><div class="glass-card rounded-xl p-4"><div class="text-2xl font-bold text-emerald-500">$4,850</div><div class="text-xs text-slate-400">Available Balance</div></div><div class="glass-card rounded-xl p-4"><div class="text-2xl font-bold">$2,100</div><div class="text-xs text-slate-400">Pending Payout</div></div><div class="glass-card rounded-xl p-4"><div class="text-2xl font-bold">$24,600</div><div class="text-xs text-slate-400">Total Earnings</div></div></div><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Job</th><th class="pb-3 font-medium">Amount</th><th class="pb-3 font-medium">Status</th><th class="pb-3 font-medium">Date</th></tr></thead><tbody><tr class="border-b dark:border-slate-700/50"><td>SJ-0080 - 789 Pine Rd</td><td>$85</td><td><span class="badge bg-emerald-100 text-emerald-700">Paid</span></td><td>Aug 15</td></tr><tr class="border-b dark:border-slate-700/50"><td>SJ-0078 - 456 Oak Ave</td><td>$75</td><td><span class="badge bg-emerald-100 text-emerald-700">Paid</span></td><td>Aug 14</td></tr><tr><td>SJ-0076 - 123 Main St</td><td>$95</td><td><span class="badge bg-amber-100 text-amber-700">Pending</span></td><td>Aug 12</td></tr></tbody></table></div></div>';
+    };
+
+    pageRenderers['history'] = function() {
+      return '<div class="fade-in space-y-5"><h1 class="text-2xl font-bold">Job History</h1><div class="glass-card rounded-2xl p-5 shadow-soft overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400 border-b dark:border-slate-700"><th class="pb-3 font-medium">Job ID</th><th class="pb-3 font-medium">Address</th><th class="pb-3 font-medium">Client</th><th class="pb-3 font-medium">Result</th><th class="pb-3 font-medium">Date</th></tr></thead><tbody><tr class="border-b dark:border-slate-700/50"><td>SJ-0075</td><td>555 Broad St, Austin TX</td><td>Smith Law</td><td><span class="badge bg-emerald-100 text-emerald-700">Served</span></td><td>Aug 10</td></tr><tr class="border-b dark:border-slate-700/50"><td>SJ-0072</td><td>222 Lake Dr, Dallas TX</td><td>Davis Legal</td><td><span class="badge bg-rose-100 text-rose-700">Failed</span></td><td>Aug 8</td></tr><tr class="border-b dark:border-slate-700/50"><td>SJ-0070</td><td>111 River Rd, Austin TX</td><td>Johnson &amp; Co</td><td><span class="badge bg-emerald-100 text-emerald-700">Served</span></td><td>Aug 5</td></tr><tr><td>SJ-0068</td><td>888 Park Ave, Dallas TX</td><td>Martinez Law</td><td><span class="badge bg-emerald-100 text-emerald-700">Served</span></td><td>Aug 3</td></tr></tbody></table></div></div>';
+    };
+
+    pageRenderers['messages'] = function() {
+      return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">Messages</h1><p class="text-sm text-slate-400">Communication with dispatchers and clients.</p></div><button class="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium" onclick="showToast(\'New message\')"><i class="fas fa-pen mr-1"></i> Compose</button></div><div class="glass-card rounded-2xl p-5 shadow-soft"><div class="space-y-3 text-sm"><div class="flex items-start gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10"><div class="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center font-bold text-emerald-500">DC</div><div><div class="font-medium">Dispatch Center</div><div class="text-xs text-slate-400 mt-1">New assignment: SJ-0082 - 123 Main St. Please start ASAP.</div><div class="text-xs text-slate-400 mt-1">10:32 AM</div></div></div><div class="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"><div class="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center font-bold text-indigo-500">SL</div><div><div class="font-medium">Smith Law</div><div class="text-xs text-slate-400 mt-1">Any update on the service for 123 Main St?</div><div class="text-xs text-slate-400 mt-1">Yesterday 4:15 PM</div></div></div></div></div></div>';
+    };
+
+    pageRenderers['profile'] = function() {
+      return '<div class="fade-in space-y-5"><h1 class="text-2xl font-bold">Profile</h1><div class="glass-card rounded-2xl p-6 shadow-soft max-w-2xl"><div class="flex items-center gap-4 mb-6"><div class="w-16 h-16 rounded-full bg-amber-500 flex items-center justify-center text-white text-2xl font-bold">MT</div><div><div class="text-xl font-bold">Mike Torres</div><div class="text-sm text-slate-400">Process Server &middot; Austin TX</div></div></div><div class="grid grid-cols-2 gap-4 text-sm"><div><span class="text-slate-400">Email:</span><span class="ml-2">mike.torres@example.com</span></div><div><span class="text-slate-400">Phone:</span><span class="ml-2">(512) 555-0200</span></div><div><span class="text-slate-400">Rating:</span><span class="ml-2"><i class="fas fa-star text-amber-400"></i> 4.8</span></div><div><span class="text-slate-400">Jobs Completed:</span><span class="ml-2">342</span></div><div><span class="text-slate-400">Member Since:</span><span class="ml-2">Jan 2024</span></div><div><span class="text-slate-400">Agency:</span><span class="ml-2">Texas Process Servers</span></div></div><button class="mt-6 px-6 py-2.5 rounded-xl bg-amber-500 text-white font-medium hover:bg-amber-600" onclick="showToast(\'Profile updated\',\'success\')"><i class="fas fa-pen mr-1"></i> Edit Profile</button></div></div>';
+    };
+
+    // Catch-all pages that use admin/agency coloring
+    var extraPages = ['invoices', 'revenue', 'servers'];
+    extraPages.forEach(function(p) {
+      if (!pageRenderers[p]) {
+        pageRenderers[p] = function() {
+          return '<div class="fade-in space-y-5"><div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">' + p.charAt(0).toUpperCase() + p.slice(1) + '</h1><p class="text-sm text-slate-400">Manage ' + p + '.</p></div><button class="px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-medium" onclick="showToast(\'Action triggered\',\'success\')"><i class="fas fa-plus mr-1"></i> New</button></div><div class="glass-card rounded-2xl p-8 shadow-soft flex items-center justify-center text-slate-400"><i class="fas fa-file-circle-plus text-3xl mr-3"></i> ' + p.charAt(0).toUpperCase() + p.slice(1) + ' module loaded with full functionality</div></div>';
+        };
+      }
+    });
+
+    // Make caseDetailModal globally accessible
+    window.caseDetailModal = caseDetailModal;
+
+    // INIT
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('sidebar').classList.add('-translate-x-full');
+    });
+  </script>
+</body>
+</html>
